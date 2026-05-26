@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -33,7 +32,7 @@ public class SecurityConfig {
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))
                 .defaultSuccessUrl("/", true))
             .logout(logout -> logout
-                .logoutRequestMatcher(new AntPathRequestMatcher("/api/logout"))
+                .logoutUrl("/api/logout")
                 .logoutSuccessUrl("/"));
         return http.build();
     }

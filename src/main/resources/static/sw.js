@@ -1,6 +1,6 @@
 /* HikerAid Service Worker — offline-first PWA */
 
-const CACHE_NAME = 'hikerAid-v11';
+const CACHE_NAME = 'hikerAid-v12';
 const TILE_CACHE = 'hikerAid-tiles-v1';
 
 const APP_SHELL = [
@@ -12,7 +12,7 @@ const APP_SHELL = [
   '/manifest.json',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js',
 ];
 
 // Install — cache app shell

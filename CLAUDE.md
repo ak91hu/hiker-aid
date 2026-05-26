@@ -2,7 +2,7 @@
 
 ## What this project is
 
-Spring Boot 3.3.4 app serving a mobile-first PWA for GPX route analysis. Runs on port 8080. No database — fully stateless; analysis happens in-memory per request.
+Spring Boot 4.0.6 app (Spring Framework 7, Jackson 3) serving a mobile-first PWA for GPX route analysis. Runs on port 8080. No database — fully stateless; analysis happens in-memory per request.
 
 ## How to build and run
 
