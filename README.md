@@ -1,8 +1,19 @@
 # HikerAid
 
-**Know when to turn back.** Advanced GPX route analysis with safety-first features: turnaround time, daylight margin, point of no return, and fitness-personalized time estimates.
+[![CI](https://github.com/ak91hu/hiker-aid/actions/workflows/ci.yml/badge.svg)](https://github.com/ak91hu/hiker-aid/actions/workflows/ci.yml)
+[![Deploy](https://img.shields.io/badge/deploy-Render-46E3B7?logo=render)](https://hikeraid.onrender.com)
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-6DB33F?logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8?logo=pwa&logoColor=white)](#pwa--offline)
 
-Free. No paywall. Works offline. Sign in with Google to save activities.
+**Know when to turn back.** Safety-first GPX route analysis with turnaround time, daylight margin, point of no return, and fitness-personalized Tobler time estimates.
+
+### [Live Demo](https://hikeraid.onrender.com)
+
+> Free. No paywall. Works offline. Sign in with Google to save activities.
+>
+> *First load may take ~30s if the server is asleep (free tier).*
 
 ---
 
