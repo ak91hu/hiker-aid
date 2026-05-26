@@ -740,6 +740,60 @@
     });
   });
 
+  // ── AI Analysis ────────────────────────────────────────────────────────
+  document.getElementById('btn-ai').addEventListener('click', requestAiAnalysis);
+  document.getElementById('btn-close-ai').addEventListener('click', () => {
+    document.getElementById('ai-panel').classList.add('hidden');
+  });
+
+  async function requestAiAnalysis() {
+    if (!routeData) return;
+    const panel = document.getElementById('ai-panel');
+    const content = document.getElementById('ai-content');
+
+    panel.classList.remove('hidden');
+    content.innerHTML = '<div class="ai-loading"><div class="spinner"></div><p>Analyzing your route...</p></div>';
+
+    try {
+      const res = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: routeData.name,
+          stats: routeData.stats,
+          safety: routeData.safety
+        })
+      });
+      const data = await res.json();
+
+      if (data.available && data.analysis) {
+        content.innerHTML = markdownToHtml(data.analysis);
+      } else {
+        content.innerHTML = '<p style="color:var(--c-text-muted)">AI analysis is not available at this time.</p>';
+      }
+    } catch (e) {
+      content.innerHTML = '<p style="color:var(--c-danger)">Could not reach AI service. Check your connection.</p>';
+    }
+  }
+
+  function markdownToHtml(md) {
+    return md
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, m => {
+        const tag = m.trim().startsWith('<li>1') ? 'ol' : 'ul';
+        return `<${tag}>${m}</${tag}>`;
+      })
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/^(?!<[hulo])(.+)$/gm, '<p>$1</p>')
+      .replace(/<p><\/p>/g, '');
+  }
+
   // ── Export / download ──────────────────────────────────────────────────
   document.getElementById('btn-export').addEventListener('click', exportSummary);
 

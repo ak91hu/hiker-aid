@@ -13,3 +13,5 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
