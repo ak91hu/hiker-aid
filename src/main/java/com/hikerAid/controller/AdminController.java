@@ -109,7 +109,7 @@ public class AdminController {
         if (user == null) return ResponseEntity.notFound().build();
         if (user.isAdmin()) return ResponseEntity.badRequest().body(Map.of("error", "Cannot delete admin user"));
 
-        activityRepo.findByUserIdOrderByRecordedAtDesc(user.getId()).forEach(activityRepo::delete);
+        activityRepo.deleteAllByUserId(user.getId());
         userRepo.delete(user);
         return ResponseEntity.ok(Map.of("deleted", true));
     }

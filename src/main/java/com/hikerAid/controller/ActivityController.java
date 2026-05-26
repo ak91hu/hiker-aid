@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,15 +34,17 @@ public class ActivityController {
         List<Map<String, Object>> summaries = activityRepo
             .findByUserIdOrderByRecordedAtDesc(user.getId())
             .stream()
-            .map(a -> Map.<String, Object>of(
-                "id", a.getId(),
-                "name", a.getName() != null ? a.getName() : "Unnamed",
-                "recordedAt", a.getRecordedAt().toString(),
-                "distanceKm", a.getDistanceKm() != null ? a.getDistanceKm() : 0,
-                "movingTimeMinutes", a.getMovingTimeMinutes() != null ? a.getMovingTimeMinutes() : 0,
-                "elevationGainM", a.getElevationGainM() != null ? a.getElevationGainM() : 0,
-                "difficulty", a.getDifficulty() != null ? a.getDifficulty() : "Unknown"
-            ))
+            .map(a -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", a.getId());
+                m.put("name", a.getName() != null ? a.getName() : "Unnamed");
+                m.put("recordedAt", a.getRecordedAt() != null ? a.getRecordedAt().toString() : null);
+                m.put("distanceKm", a.getDistanceKm() != null ? a.getDistanceKm() : 0);
+                m.put("movingTimeMinutes", a.getMovingTimeMinutes() != null ? a.getMovingTimeMinutes() : 0);
+                m.put("elevationGainM", a.getElevationGainM() != null ? a.getElevationGainM() : 0);
+                m.put("difficulty", a.getDifficulty() != null ? a.getDifficulty() : "Unknown");
+                return m;
+            })
             .toList();
         return ResponseEntity.ok(summaries);
     }

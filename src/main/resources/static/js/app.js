@@ -303,8 +303,9 @@
     }
 
     const diffEl = document.getElementById('stat-difficulty');
-    diffEl.textContent = s.difficulty || '—';
-    diffEl.className = `stat-value difficulty-${s.difficulty.toLowerCase().replace(' ', '-')}`;
+    const diffLabel = s.difficulty || 'Unknown';
+    diffEl.textContent = diffLabel;
+    diffEl.className = `stat-value difficulty-${diffLabel.toLowerCase().replace(' ', '-')}`;
 
     if (currentUser) {
       const saveBtn = document.getElementById('btn-save-activity');
@@ -321,7 +322,7 @@
       document.getElementById('viewer-screen').style.setProperty('--elev-h', '150px');
       HikerElevation.build(data.elevationProfile);
       HikerElevation.setHoverCallback((profileIdx, profilePt) => {
-        const ratio = profileIdx / (data.elevationProfile.length - 1);
+        const ratio = data.elevationProfile.length > 1 ? profileIdx / (data.elevationProfile.length - 1) : 0;
         const trackIdx = Math.round(ratio * (data.trackPoints.length - 1));
         HikerMap.showPositionAtIndex(trackIdx);
         HikerElevation.showHoverInfo(profilePt);
@@ -689,7 +690,7 @@
   }
 
   function formatTime(minutes) {
-    if (!minutes) return '—';
+    if (minutes == null || minutes === '') return '—';
     const h = Math.floor(Math.abs(minutes) / 60);
     const m = Math.abs(minutes) % 60;
     return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m` : `${m}m`;

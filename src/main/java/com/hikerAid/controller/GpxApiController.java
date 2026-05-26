@@ -46,8 +46,8 @@ public class GpxApiController {
         }
         fitness = Math.max(1, Math.min(5, fitness));
 
-        try {
-            GpxData gpxData = gpxParser.parse(file.getInputStream());
+        try (var is = file.getInputStream()) {
+            GpxData gpxData = gpxParser.parse(is);
             AnalysisResult result = routeAnalysis.analyzeWithWeight(gpxData, weight, fitness, startHour, startMinute);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
