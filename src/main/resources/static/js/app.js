@@ -375,6 +375,7 @@
     currentGpxText = await file.text();
 
     const weight = parseFloat(weightInput.value) || 70;
+    const height = parseFloat(document.getElementById('height-input').value) || 170;
     const fitness = document.getElementById('fitness-select').value || '3';
     const st = currentStartTime();
     const startHour = st.hour;
@@ -383,6 +384,7 @@
     const form = new FormData();
     form.append('file', file);
     form.append('weight', weight);
+    form.append('height', height);
     form.append('fitness', fitness);
     form.append('startHour', startHour);
     form.append('startMinute', startMinute);
@@ -638,6 +640,7 @@
     const form = new FormData();
     form.append('file', gpxBlob, 'recording.gpx');
     form.append('weight', document.getElementById('weight-input').value || '70');
+    form.append('height', document.getElementById('height-input').value || '170');
     form.append('fitness', document.getElementById('fitness-select').value || '3');
     const st3 = currentStartTime();
     form.append('startHour', st3.hour);
@@ -739,6 +742,19 @@
       document.getElementById('layer-panel').classList.add('hidden');
     });
   });
+
+  // ── AI Tip (homepage) ──────────────────────────────────────────────────
+  async function loadAiTip() {
+    try {
+      const res = await fetch('/api/ai-tip');
+      const data = await res.json();
+      if (data.available && data.tip) {
+        const card = document.getElementById('ai-tip-card');
+        document.getElementById('ai-tip-text').textContent = data.tip;
+        card.classList.remove('hidden');
+      }
+    } catch (e) { /* offline or unavailable */ }
+  }
 
   // ── AI Analysis ────────────────────────────────────────────────────────
   document.getElementById('btn-ai').addEventListener('click', requestAiAnalysis);
@@ -940,6 +956,7 @@
   HikerMap.init();
   checkAuth();
   updateSyncBadge();
+  loadAiTip();
 
   const cached = localStorage.getItem('hikerAid_lastRoute');
   if (cached) {

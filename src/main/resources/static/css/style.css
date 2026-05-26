@@ -121,6 +121,32 @@ html, body {
   justify-content: space-between;
   gap: 12px;
 }
+.body-row { gap: 8px; }
+.body-input { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.body-input label { font-size: 0.7rem; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.input-unit {
+  display: flex;
+  align-items: center;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.input-unit input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--c-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 4px;
+  -moz-appearance: textfield;
+}
+.input-unit input::-webkit-outer-spin-button,
+.input-unit input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.input-unit span { font-size: 0.72rem; color: var(--c-text-muted); padding-right: 8px; flex-shrink: 0; }
+.fitness-input select { width: 100%; }
 .setting-label {
   display: flex;
   align-items: center;
@@ -128,26 +154,6 @@ html, body {
   font-size: 0.88rem;
   color: var(--c-text-muted);
 }
-.weight-input-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.weight-input-group input {
-  width: 70px;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: 8px;
-  color: var(--c-text);
-  font-size: 1rem;
-  font-weight: 600;
-  text-align: center;
-  padding: 6px 8px;
-  -moz-appearance: textfield;
-}
-.weight-input-group input::-webkit-outer-spin-button,
-.weight-input-group input::-webkit-inner-spin-button { -webkit-appearance: none; }
-.unit { font-size: 0.85rem; color: var(--c-text-muted); }
 
 #fitness-select, #start-time {
   background: var(--c-surface-2);
@@ -280,6 +286,32 @@ html, body {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--c-danger);
+}
+
+/* ─── AI TIP CARD ──────────────────────────────────────────────────────── */
+.ai-tip-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--c-surface);
+  border: 1px solid rgba(144,224,239,0.2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.ai-tip-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-info);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.ai-tip-text {
+  font-size: 0.82rem;
+  color: var(--c-text);
+  line-height: 1.5;
 }
 
 /* ─── RECORD BUTTON ────────────────────────────────────────────────────── */

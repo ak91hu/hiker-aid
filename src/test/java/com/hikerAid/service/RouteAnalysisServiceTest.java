@@ -136,9 +136,9 @@ class RouteAnalysisServiceTest {
             pt(47.530, 19.0, 500.0)
         );
 
-        AnalysisResult beginner = service.analyzeWithWeight(data, 70, 1, 8, 0);
-        AnalysisResult average = service.analyzeWithWeight(data, 70, 3, 8, 0);
-        AnalysisResult veryFit = service.analyzeWithWeight(data, 70, 5, 8, 0);
+        AnalysisResult beginner = service.analyzeWithWeight(data, 70, 170, 1, 8, 0);
+        AnalysisResult average = service.analyzeWithWeight(data, 70, 170, 3, 8, 0);
+        AnalysisResult veryFit = service.analyzeWithWeight(data, 70, 170, 5, 8, 0);
 
         assertTrue(beginner.stats().estimatedTimeMinutes() > average.stats().estimatedTimeMinutes());
         assertTrue(average.stats().estimatedTimeMinutes() > veryFit.stats().estimatedTimeMinutes());
@@ -152,7 +152,7 @@ class RouteAnalysisServiceTest {
             pt(47.520, 19.0, 400.0)
         );
 
-        AnalysisResult result = service.analyzeWithWeight(data, 70, 3, 8, 0);
+        AnalysisResult result = service.analyzeWithWeight(data, 70, 170, 3, 8, 0);
         SafetyAnalysis safety = result.safety();
 
         assertNotNull(safety);

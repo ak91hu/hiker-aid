@@ -82,6 +82,7 @@ Single Thymeleaf page (`index.html`) with three CSS-toggled screens: `upload-scr
 |---|---|---|---|
 | `file` | multipart | required | .gpx file |
 | `weight` | double | 70 | Body weight in kg (20–300) |
+| `height` | double | 170 | Height in cm (120–220) |
 | `fitness` | int | 3 | Fitness level 1–5 (Beginner→Very fit) |
 | `startHour` | int | 8 | Planned start hour (0–23) |
 | `startMinute` | int | 0 | Planned start minute (0–59) |

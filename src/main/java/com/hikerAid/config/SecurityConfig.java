@@ -24,7 +24,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf
                 .ignoringRequestMatchers("/api/**"))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/api/analyze", "/api/health", "/api/user", "/api/ai-analysis",
+                .requestMatchers("/", "/api/analyze", "/api/health", "/api/user", "/api/ai-analysis", "/api/ai-tip",
                     "/css/**", "/js/**", "/icons/**", "/sw.js", "/manifest.json").permitAll()
                 .requestMatchers("/admin", "/api/admin/**").authenticated()
                 .requestMatchers("/api/activities/**").authenticated()

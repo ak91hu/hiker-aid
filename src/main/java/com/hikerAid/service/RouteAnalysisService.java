@@ -18,10 +18,10 @@ public class RouteAnalysisService {
     private static final int SAFETY_BUFFER_MINUTES = 30;
 
     public AnalysisResult analyze(GpxData data) {
-        return analyzeWithWeight(data, 70.0, 3, 8, 0);
+        return analyzeWithWeight(data, 70.0, 170.0, 3, 8, 0);
     }
 
-    public AnalysisResult analyzeWithWeight(GpxData data, double weightKg, int fitnessLevel, int startHour, int startMinute) {
+    public AnalysisResult analyzeWithWeight(GpxData data, double weightKg, double heightCm, int fitnessLevel, int startHour, int startMinute) {
         List<TrackPoint> points = flatten(data.segments());
         double paceFactor = paceFactorForLevel(fitnessLevel);
 
@@ -101,7 +101,7 @@ public class RouteAnalysisService {
         double avgSpeedKmh = movingMinutes > 0 ? totalDistKm / (movingMinutes / 60.0) : 0;
 
         int diffScore = difficultyScore(totalDistKm, totalAscent, maxAbsGradient);
-        double calories = estimateCalories(weightKg, totalDistKm, totalAscent, totalDescent);
+        double calories = estimateCalories(weightKg, heightCm, totalDistKm, totalAscent, totalDescent, movingMinutes);
 
         Integer avgHr = hrCount > 0 ? (int) (hrSum / hrCount) : null;
         Integer maxHrVal = hrCount > 0 ? maxHr : null;
@@ -341,11 +341,20 @@ public class RouteAnalysisService {
         return "Extreme";
     }
 
-    private double estimateCalories(double weightKg, double distKm, double ascentM, double descentM) {
-        double flat = weightKg * distKm * 0.7;
+    private double estimateCalories(double weightKg, double heightCm, double distKm, double ascentM, double descentM, long movingMinutes) {
+        // Stride efficiency: taller hikers are ~5% more efficient per 10cm above average
+        double heightFactor = 1.0 - (heightCm - 170) * 0.005;
+        heightFactor = Math.max(0.85, Math.min(1.15, heightFactor));
+
+        double flat = weightKg * distKm * 0.7 * heightFactor;
         double climb = ascentM * weightKg * 0.01;
         double descent = descentM * weightKg * 0.003;
-        return flat + climb + descent;
+
+        // BMR during activity (simplified Mifflin-St Jeor, gender-neutral, ~age 35)
+        double bmrPerHour = (10 * weightKg + 6.25 * heightCm - 200) / 24.0;
+        double bmrDuringHike = bmrPerHour * (movingMinutes / 60.0);
+
+        return flat + climb + descent + bmrDuringHike;
     }
 
     // ── Output builders ─────────────────────────────────────────────────────

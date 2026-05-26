@@ -68,6 +68,11 @@
 - **Live GPS tracking** — follow your position on a loaded route in real time
 - **Multiple map layers** — Streets, Topo, Satellite, Dark
 
+### AI Performance Analysis (Gemini)
+- **Route coaching** — personalized performance summary, key risks, actionable recommendations, and training tips
+- **Seasonal hiking tips** — AI-generated safety insight on the homepage, refreshed each visit
+- **Context-aware** — AI receives distance, elevation, gradient, difficulty, fitness level, and safety data for targeted advice
+
 ### Export
 - **Download summary** — text file with all stats + safety analysis
 - **Download GPX** — export recorded or uploaded route as .gpx file
@@ -81,6 +86,7 @@
 - Java 21+
 - Maven 3.8+
 - Google OAuth2 credentials ([setup instructions below](#google-oauth-setup))
+- Gemini API key ([get one free](https://aistudio.google.com/apikey))
 
 ### Build and Run
 
@@ -141,6 +147,7 @@ Analyze a GPX file. Multipart form data. Public endpoint.
 |---|---|---|---|
 | `file` | file | required | .gpx file (max 15 MB) |
 | `weight` | number | 70 | Body weight in kg (20-300) |
+| `height` | number | 170 | Height in cm (120-220) |
 | `fitness` | int | 3 | Fitness level 1-5 |
 | `startHour` | int | 8 | Planned start hour (0-23) |
 | `startMinute` | int | 0 | Planned start minute (0-59) |
@@ -253,9 +260,12 @@ score = min(distKm * 2, 40) + min(ascent / 50, 40) + min(maxGradient / 2.5, 20)
 ### Calorie Estimate
 
 ```
-calories = weight * distKm * 0.7        (flat terrain)
-         + ascentM * weight * 0.01       (climbing: mgh / ~25% efficiency)
-         + descentM * weight * 0.003     (descent: eccentric muscle work)
+heightFactor = 1.0 - (heightCm - 170) * 0.005    (stride efficiency: taller = more efficient)
+flat         = weight * distKm * 0.7 * heightFactor
+climb        = ascentM * weight * 0.01             (mgh / ~25% muscular efficiency)
+descent      = descentM * weight * 0.003           (eccentric muscle work)
+bmr          = (10*weight + 6.25*height - 200) / 24 * hours   (basal metabolic rate during hike)
+total        = flat + climb + descent + bmr
 ```
 
 ### Elevation Deadband
@@ -288,6 +298,7 @@ Accuracy: ~10-15 minutes. The 30-minute safety buffer compensates for this uncer
 | CSRF | API exempt (mitigated by SameSite=Lax session cookies) |
 | Error handling | Generic messages; no stack traces leaked to client |
 | H2 console | Disabled |
+| Gemini API key | Server-side only; never sent to browser |
 
 ---
 
@@ -331,6 +342,8 @@ These thresholds are defined in both `map.js` and `elevation.js` and must be kep
 | `server.compression.enabled` | true | Gzip for HTML/CSS/JS/JSON |
 | `spring.datasource.url` | `jdbc:h2:file:./data/hikeraid` | Database file location |
 | `spring.jpa.hibernate.ddl-auto` | update | Auto-create/update tables |
+| `hikerAid.gemini-api-key` | `${GEMINI_API_KEY}` | Gemini API key for AI features |
+| `hikerAid.admin-email` | `${ADMIN_EMAIL}` | Email for admin access |
 
 ---
 

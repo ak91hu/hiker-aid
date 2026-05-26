@@ -29,4 +29,18 @@ public class AiController {
 
         return ResponseEntity.ok(Map.of("available", true, "analysis", analysis));
     }
+
+    @GetMapping("/ai-tip")
+    public ResponseEntity<?> tip() {
+        if (!geminiService.isAvailable()) {
+            return ResponseEntity.ok(Map.of("available", false));
+        }
+
+        String tip = geminiService.getHikingTip();
+        if (tip == null) {
+            return ResponseEntity.ok(Map.of("available", false));
+        }
+
+        return ResponseEntity.ok(Map.of("available", true, "tip", tip));
+    }
 }

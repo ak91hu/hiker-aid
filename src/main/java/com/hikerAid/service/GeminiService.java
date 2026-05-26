@@ -62,6 +62,37 @@ public class GeminiService {
         return null;
     }
 
+    public String getHikingTip() {
+        if (!isAvailable()) return null;
+
+        int month = java.time.LocalDate.now().getMonthValue();
+        String season = month >= 3 && month <= 5 ? "spring" : month >= 6 && month <= 8 ? "summer" : month >= 9 && month <= 11 ? "autumn" : "winter";
+
+        String prompt = "Give one short, specific hiking safety or performance tip for " + season +
+            ". Max 2 sentences. Be practical and actionable. No generic advice. Start directly with the tip, no intro.";
+
+        Map<String, Object> request = Map.of(
+            "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
+            "generationConfig", Map.of("temperature", 0.9, "maxOutputTokens", 100)
+        );
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(GEMINI_URL + "?key=" + apiKey, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode candidates = root.path("candidates");
+                if (candidates.isArray() && !candidates.isEmpty()) {
+                    return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+                }
+            }
+        } catch (Exception e) { /* ignore */ }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private String buildPrompt(Map<String, Object> data) {
         Map<String, Object> stats = (Map<String, Object>) data.get("stats");
