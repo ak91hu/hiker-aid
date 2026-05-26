@@ -133,7 +133,7 @@ html, body {
   overflow: hidden;
 }
 .input-unit input {
-  width: 100%;
+  width: 48px;
   background: transparent;
   border: none;
   color: var(--c-text);
