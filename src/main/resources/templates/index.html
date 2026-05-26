@@ -31,8 +31,15 @@
         <div id="user-info" class="user-info hidden">
             <img id="user-avatar" class="avatar" alt="">
             <span id="user-name"></span>
+            <button id="btn-sync" class="sync-btn hidden" title="Sync pending activities">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                </svg>
+                <span id="sync-badge" class="sync-badge">0</span>
+            </button>
             <a href="/api/logout" id="logout-btn" class="logout-link">Logout</a>
         </div>
+        <div id="offline-banner" class="offline-banner hidden">Offline</div>
     </div>
     <div class="upload-hero">
         <div class="hero-icon">

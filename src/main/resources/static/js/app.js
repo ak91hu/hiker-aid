@@ -20,6 +20,121 @@
   let recordPolyline = null;
   let recordInterval = null;
 
+  // ── Offline Queue (IndexedDB) ───────────────────────────────────────
+  const DB_NAME = 'hikerAidOffline';
+  const STORE_NAME = 'pendingActivities';
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(STORE_NAME)) {
+          req.result.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function addPending(activity) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).add({ ...activity, savedAt: new Date().toISOString() });
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  }
+
+  async function getAllPending() {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).getAll();
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => { db.close(); resolve(req.result); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  }
+
+  async function deletePending(id) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  }
+
+  async function getPendingCount() {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).count();
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => { db.close(); resolve(req.result); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  }
+
+  async function updateSyncBadge() {
+    try {
+      const count = await getPendingCount();
+      const btn = document.getElementById('btn-sync');
+      const badge = document.getElementById('sync-badge');
+      if (count > 0 && currentUser) {
+        btn.classList.remove('hidden');
+        badge.textContent = count;
+      } else {
+        btn.classList.add('hidden');
+      }
+    } catch (e) { /* IndexedDB unavailable */ }
+  }
+
+  async function syncPendingActivities() {
+    if (!navigator.onLine || !currentUser) return 0;
+
+    const pending = await getAllPending();
+    if (pending.length === 0) return 0;
+
+    const syncBtn = document.getElementById('btn-sync');
+    syncBtn.classList.add('syncing');
+
+    let synced = 0;
+    for (const activity of pending) {
+      try {
+        const body = { ...activity };
+        delete body.id;
+        delete body.savedAt;
+        const res = await fetch('/api/activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          await deletePending(activity.id);
+          synced++;
+        }
+      } catch (e) { break; }
+    }
+
+    syncBtn.classList.remove('syncing');
+    await updateSyncBadge();
+    if (synced > 0) {
+      loadActivities();
+      showToast(`${synced} ${synced === 1 ? 'activity' : 'activities'} synced`);
+    }
+    return synced;
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2d1e;border:1px solid rgba(116,198,157,0.3);border-radius:10px;padding:10px 16px;font-size:0.8rem;color:#74C69D;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
   // ── DOM refs ──────────────────────────────────────────────────────────
   const screens = {
     upload:  document.getElementById('upload-screen'),
@@ -58,6 +173,8 @@
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         loadActivities();
+        updateSyncBadge();
+        if (navigator.onLine) syncPendingActivities();
       }
     } catch (e) { /* offline or error — ignore */ }
   }
@@ -164,33 +281,57 @@
   async function saveActivity() {
     if (!routeData || !currentUser || !currentGpxText) return;
     const s = routeData.stats;
+    const activityData = {
+      name: routeData.name || 'Unnamed route',
+      gpxData: currentGpxText,
+      distanceKm: s.distanceKm,
+      elevationGainM: s.elevationGainM,
+      elevationLossM: s.elevationLossM,
+      movingTimeMinutes: s.estimatedTimeMinutes,
+      totalTimeMinutes: s.totalTimeMinutes,
+      calories: s.estimatedCalories,
+      difficulty: s.difficulty,
+      difficultyScore: s.difficultyScore,
+      maxElevationM: s.maxElevationM,
+      minElevationM: s.minElevationM,
+      avgSpeedKmh: s.avgSpeedKmh
+    };
+
+    const saveBtn = document.getElementById('btn-save-activity');
+
+    if (!navigator.onLine) {
+      await addPending(activityData);
+      await updateSyncBadge();
+      saveBtn.textContent = 'Saved offline';
+      saveBtn.disabled = true;
+      setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
+      return;
+    }
+
     try {
       const res = await fetch('/api/activities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: routeData.name || 'Unnamed route',
-          gpxData: currentGpxText,
-          distanceKm: s.distanceKm,
-          elevationGainM: s.elevationGainM,
-          elevationLossM: s.elevationLossM,
-          movingTimeMinutes: s.estimatedTimeMinutes,
-          totalTimeMinutes: s.totalTimeMinutes,
-          calories: s.estimatedCalories,
-          difficulty: s.difficulty,
-          difficultyScore: s.difficultyScore,
-          maxElevationM: s.maxElevationM,
-          minElevationM: s.minElevationM,
-          avgSpeedKmh: s.avgSpeedKmh
-        })
+        body: JSON.stringify(activityData)
       });
       if (res.ok) {
-        const saveBtn = document.getElementById('btn-save-activity');
         saveBtn.textContent = 'Saved';
         saveBtn.disabled = true;
         setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
+      } else {
+        await addPending(activityData);
+        await updateSyncBadge();
+        saveBtn.textContent = 'Saved offline';
+        saveBtn.disabled = true;
+        setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      await addPending(activityData);
+      await updateSyncBadge();
+      saveBtn.textContent = 'Saved offline';
+      saveBtn.disabled = true;
+      setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
+    }
   }
 
   // ── File upload ────────────────────────────────────────────────────────
@@ -542,6 +683,17 @@
   saveBtn.dataset.originalHtml = saveBtn.innerHTML;
   saveBtn.addEventListener('click', saveActivity);
 
+  // ── Sync ───────────────────────────────────────────────────────────────
+  document.getElementById('btn-sync').addEventListener('click', syncPendingActivities);
+
+  window.addEventListener('online', () => {
+    document.getElementById('offline-banner').classList.add('hidden');
+    if (currentUser) syncPendingActivities();
+  });
+  window.addEventListener('offline', () => {
+    document.getElementById('offline-banner').classList.remove('hidden');
+  });
+
   // ── Download GPX ──────────────────────────────────────────────────────
   document.getElementById('btn-download-gpx').addEventListener('click', downloadRecordedGpx);
 
@@ -716,9 +868,11 @@
 
   // ── Init ───────────────────────────────────────────────────────────────
   document.getElementById('start-time').value = new Date().toTimeString().slice(0, 5);
+  if (!navigator.onLine) document.getElementById('offline-banner').classList.remove('hidden');
 
   HikerMap.init();
   checkAuth();
+  updateSyncBadge();
 
   const cached = localStorage.getItem('hikerAid_lastRoute');
   if (cached) {
