@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
   <rect width="192" height="192" rx="40" fill="#0d1f0d"/>
+  <!-- Mountains -->
   <path d="M96 24 L148 144 H44 Z" fill="#40916C"/>
   <path d="M64 72 L110 144 H18 Z" fill="#2D6A4F" opacity="0.75"/>
-  <circle cx="136" cy="60" r="14" fill="#74C69D"/>
+  <!-- Trail -->
   <path d="M136 60 Q152 90 162 115" stroke="#74C69D" stroke-width="5" stroke-dasharray="8,5" fill="none" stroke-linecap="round"/>
+  <!-- First aid cross -->
+  <rect x="118" y="30" width="38" height="38" rx="8" fill="#E76F51"/>
+  <rect x="131" y="37" width="12" height="24" rx="1.5" fill="#fff"/>
+  <rect x="125" y="43" width="24" height="12" rx="1.5" fill="#fff"/>
 </svg>
