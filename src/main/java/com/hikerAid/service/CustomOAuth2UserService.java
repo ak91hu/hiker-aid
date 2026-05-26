@@ -14,7 +14,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
 
-    @Value("${ADMIN_EMAIL:}")
+    @Value("${hikerAid.admin-email:}")
     private String adminEmail;
 
     public CustomOAuth2UserService(UserRepository userRepository) {
