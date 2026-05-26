@@ -252,9 +252,9 @@
       form.append('file', gpxBlob, 'activity.gpx');
       form.append('weight', document.getElementById('weight-input').value || '70');
       form.append('fitness', document.getElementById('fitness-select').value || '3');
-      const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
-      form.append('startHour', parseInt(startTimeParts[0]) || 8);
-      form.append('startMinute', parseInt(startTimeParts[1]) || 0);
+      const st2 = currentStartTime();
+      form.append('startHour', st2.hour);
+      form.append('startMinute', st2.minute);
 
       const analyzeRes = await fetch('/api/analyze', { method: 'POST', body: form });
       const data = await analyzeRes.json();
@@ -376,9 +376,9 @@
 
     const weight = parseFloat(weightInput.value) || 70;
     const fitness = document.getElementById('fitness-select').value || '3';
-    const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
-    const startHour = parseInt(startTimeParts[0]) || 8;
-    const startMinute = parseInt(startTimeParts[1]) || 0;
+    const st = currentStartTime();
+    const startHour = st.hour;
+    const startMinute = st.minute;
 
     const form = new FormData();
     form.append('file', file);
@@ -569,7 +569,16 @@
       recordTotalDistM += haversine(prev.lat, prev.lon, pt.lat, pt.lon);
     }
     setText('rec-distance', (recordTotalDistM / 1000).toFixed(2));
+    setText('rec-points', `${recordedPoints.length} pts`);
     if (pt.ele != null) setText('rec-ele', `${Math.round(pt.ele)}m`);
+
+    const elapsedMin = (Date.now() - recordStartTime) / 60000;
+    if (elapsedMin > 0.5 && recordTotalDistM > 10) {
+      const paceMinPerKm = elapsedMin / (recordTotalDistM / 1000);
+      const pM = Math.floor(paceMinPerKm);
+      const pS = Math.round((paceMinPerKm - pM) * 60);
+      setText('rec-pace', `${pM}:${String(pS).padStart(2, '0')}`);
+    }
   }
 
   function updateRecordTimer() {
@@ -630,9 +639,9 @@
     form.append('file', gpxBlob, 'recording.gpx');
     form.append('weight', document.getElementById('weight-input').value || '70');
     form.append('fitness', document.getElementById('fitness-select').value || '3');
-    const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
-    form.append('startHour', parseInt(startTimeParts[0]) || 8);
-    form.append('startMinute', parseInt(startTimeParts[1]) || 0);
+    const st3 = currentStartTime();
+    form.append('startHour', st3.hour);
+    form.append('startMinute', st3.minute);
 
     try {
       const res = await fetch('/api/analyze', { method: 'POST', body: form });
@@ -858,6 +867,11 @@
     document.getElementById('upload-error').classList.add('hidden');
   }
 
+  function currentStartTime() {
+    const now = new Date();
+    return { hour: now.getHours(), minute: now.getMinutes() };
+  }
+
   function haversine(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -867,7 +881,6 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
-  document.getElementById('start-time').value = new Date().toTimeString().slice(0, 5);
   if (!navigator.onLine) document.getElementById('offline-banner').classList.remove('hidden');
 
   HikerMap.init();

@@ -24,10 +24,7 @@
 <!-- ═══════════════════════════════════════════════════════ UPLOAD SCREEN -->
 <div id="upload-screen" class="screen active">
     <div class="user-bar" id="user-bar">
-        <a id="login-btn" href="/oauth2/authorization/google" class="google-btn">
-            <svg viewBox="0 0 48 48" width="20" height="20"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 019.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.99 23.99 0 000 24c0 3.77.9 7.35 2.56 10.52l7.97-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 5.93C6.51 42.62 14.62 48 24 48z"/></svg>
-            <span>Sign in with Google</span>
-        </a>
+        <div id="offline-banner" class="offline-banner hidden">Offline</div>
         <div id="user-info" class="user-info hidden">
             <img id="user-avatar" class="avatar" alt="">
             <span id="user-name"></span>
@@ -39,7 +36,6 @@
             </button>
             <a href="/api/logout" id="logout-btn" class="logout-link">Logout</a>
         </div>
-        <div id="offline-banner" class="offline-banner hidden">Offline</div>
     </div>
     <div class="upload-hero">
         <div class="hero-icon">
@@ -97,16 +93,7 @@
             </select>
         </div>
 
-        <div class="settings-row">
-            <label class="setting-label" for="start-time">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 1.5a6.5 6.5 0 110 13 6.5 6.5 0 010-13zM10 5v5.5l3.5 2"/>
-                </svg>
-                Start time
-            </label>
-            <input type="time" id="start-time">
-        </div>
-
+        <input type="hidden" id="start-time">
         <div id="upload-error" class="error-banner hidden"></div>
     </div>
 
@@ -139,6 +126,11 @@
         <h2 class="activities-title">My Activities</h2>
         <div id="activities-list" class="activities-list"></div>
     </div>
+
+    <a id="login-btn" href="/oauth2/authorization/google" class="google-btn">
+        <svg viewBox="0 0 48 48" width="20" height="20"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 019.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.99 23.99 0 000 24c0 3.77.9 7.35 2.56 10.52l7.97-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 5.93C6.51 42.62 14.62 48 24 48z"/></svg>
+        <span>Sign in with Google</span>
+    </a>
 
     <p class="footer-note">Free. Works offline. Sign in to save activities.</p>
 </div>
@@ -297,17 +289,22 @@
 
     <!-- Recording overlay -->
     <div id="recording-overlay" class="recording-overlay hidden">
+        <div class="rec-header">
+            <span class="rec-indicator"><span class="rec-dot pulse"></span> REC</span>
+            <span class="rec-points" id="rec-points">0 pts</span>
+        </div>
         <div class="rec-stats-bar">
             <div class="rec-stat"><span class="rec-val" id="rec-distance">0.00</span><span class="rec-lbl">km</span></div>
-            <div class="rec-stat"><span class="rec-val" id="rec-time">0:00</span><span class="rec-lbl">time</span></div>
-            <div class="rec-stat"><span class="rec-val" id="rec-ele">--</span><span class="rec-lbl">elev</span></div>
+            <div class="rec-stat"><span class="rec-val" id="rec-time">0:00</span><span class="rec-lbl">duration</span></div>
+            <div class="rec-stat"><span class="rec-val" id="rec-ele">--</span><span class="rec-lbl">altitude</span></div>
+            <div class="rec-stat"><span class="rec-val" id="rec-pace">--</span><span class="rec-lbl">pace</span></div>
         </div>
-        <button id="btn-rec-stop" class="rec-stop-btn">Stop Recording</button>
+        <button id="btn-rec-stop" class="rec-stop-btn">Stop &amp; Finish</button>
     </div>
 
     <!-- Recording complete dialog -->
     <div id="rec-complete" class="rec-complete hidden">
-        <p class="rec-complete-title">Recording Complete</p>
+        <p class="rec-complete-title">Hike Recorded</p>
         <p id="rec-complete-summary" class="rec-complete-summary"></p>
         <div class="rec-complete-actions">
             <button id="btn-rec-analyze" class="rec-action-btn primary">Analyze Route</button>

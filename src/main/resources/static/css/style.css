@@ -653,33 +653,71 @@ html, body {
   left: 0;
   right: 0;
   z-index: 500;
-  background: rgba(13,31,13,0.94);
+  background: rgba(13,31,13,0.96);
   border-top: 2px solid var(--c-danger);
-  padding: 12px 16px;
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  backdrop-filter: blur(10px);
+}
+.rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.rec-indicator {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  backdrop-filter: blur(8px);
+  gap: 6px;
+  color: var(--c-danger);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
+.rec-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--c-danger);
+}
+.rec-dot.pulse { animation: pulse-red 1.5s infinite; }
+@keyframes pulse-red {
+  0%   { box-shadow: 0 0 0 0 rgba(231,111,81,0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(231,111,81,0); }
+  100% { box-shadow: 0 0 0 0 rgba(231,111,81,0); }
+}
+.rec-points { font-size: 0.72rem; color: var(--c-text-muted); }
 .rec-stats-bar {
-  display: flex;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
-.rec-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.rec-val { font-size: 1.1rem; font-weight: 700; color: var(--c-text); }
-.rec-lbl { font-size: 0.62rem; color: var(--c-text-muted); text-transform: uppercase; }
+.rec-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+.rec-val { font-size: 1.2rem; font-weight: 700; color: var(--c-text); }
+.rec-lbl { font-size: 0.58rem; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .rec-stop-btn {
   background: var(--c-danger);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 700;
-  padding: 10px 18px;
+  padding: 14px;
   cursor: pointer;
-  white-space: nowrap;
+  width: 100%;
+  transition: background 0.2s;
 }
+.rec-stop-btn:hover { background: #d4573d; }
+.rec-stop-btn:active { transform: scale(0.98); }
 
 /* ─── RECORDING COMPLETE ─────────────────────────────────────────────────── */
 .rec-complete {
