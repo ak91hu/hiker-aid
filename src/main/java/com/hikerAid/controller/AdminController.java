@@ -4,6 +4,8 @@ import com.hikerAid.entity.ActivityEntity;
 import com.hikerAid.entity.UserEntity;
 import com.hikerAid.repository.ActivityRepository;
 import com.hikerAid.repository.UserRepository;
+import com.hikerAid.service.GeminiService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -18,10 +20,18 @@ public class AdminController {
 
     private final UserRepository userRepo;
     private final ActivityRepository activityRepo;
+    private final GeminiService geminiService;
 
-    public AdminController(UserRepository userRepo, ActivityRepository activityRepo) {
+    @Value("${hikerAid.gemini-api-key:}")
+    private String geminiKey;
+
+    @Value("${hikerAid.admin-email:}")
+    private String adminEmail;
+
+    public AdminController(UserRepository userRepo, ActivityRepository activityRepo, GeminiService geminiService) {
         this.userRepo = userRepo;
         this.activityRepo = activityRepo;
+        this.geminiService = geminiService;
     }
 
     @GetMapping("/admin")
@@ -123,6 +133,44 @@ public class AdminController {
         if (a == null) return ResponseEntity.notFound().build();
         activityRepo.delete(a);
         return ResponseEntity.ok(Map.of("deleted", true));
+    }
+
+    @PostMapping("/api/admin/test-ai")
+    @ResponseBody
+    public ResponseEntity<?> testAi(@AuthenticationPrincipal OAuth2User principal) {
+        if (!isAdmin(principal)) return ResponseEntity.status(403).build();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("configured", geminiService.isAvailable());
+
+        if (!geminiService.isAvailable()) {
+            result.put("success", false);
+            result.put("error", "GEMINI_API_KEY not configured");
+            return ResponseEntity.ok(result);
+        }
+
+        long start = System.currentTimeMillis();
+        String response = geminiService.getHikingTip();
+        long latency = System.currentTimeMillis() - start;
+
+        result.put("success", response != null);
+        result.put("latencyMs", latency);
+        result.put("response", response != null ? response : "No response from Gemini");
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/api/admin/env-status")
+    @ResponseBody
+    public ResponseEntity<?> envStatus(@AuthenticationPrincipal OAuth2User principal) {
+        if (!isAdmin(principal)) return ResponseEntity.status(403).build();
+
+        return ResponseEntity.ok(Map.of(
+            "GOOGLE_CLIENT_ID", !System.getenv().getOrDefault("GOOGLE_CLIENT_ID", "").isBlank(),
+            "GOOGLE_CLIENT_SECRET", !System.getenv().getOrDefault("GOOGLE_CLIENT_SECRET", "").isBlank(),
+            "GEMINI_API_KEY", geminiKey != null && !geminiKey.isBlank(),
+            "ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank(),
+            "adminEmailValue", adminEmail != null ? adminEmail : "(not set)"
+        ));
     }
 
     private boolean isAdmin(OAuth2User principal) {

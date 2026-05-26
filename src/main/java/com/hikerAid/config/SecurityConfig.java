@@ -27,7 +27,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/api/analyze", "/api/health", "/api/user", "/api/ai-analysis", "/api/ai-tip",
                     "/css/**", "/js/**", "/icons/**", "/sw.js", "/manifest.json").permitAll()
                 .requestMatchers("/admin", "/api/admin/**").authenticated()
-                .requestMatchers("/api/activities/**").authenticated()
+                .requestMatchers("/api/activities/**", "/api/user/stats").authenticated()
                 .anyRequest().permitAll())
             .oauth2Login(oauth -> oauth
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))

@@ -173,6 +173,7 @@
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         loadActivities();
+        loadUserStats();
         updateSyncBadge();
         if (navigator.onLine) syncPendingActivities();
       }
@@ -268,6 +269,21 @@
     } catch (e) {
       showScreen('upload');
     }
+  }
+
+  async function loadUserStats() {
+    try {
+      const res = await fetch('/api/user/stats');
+      if (!res.ok) return;
+      const s = await res.json();
+      if (s.totalActivities > 0) {
+        document.getElementById('user-stats-section').classList.remove('hidden');
+        setText('us-hikes', s.totalActivities);
+        setText('us-km', s.totalKm);
+        setText('us-gain', s.totalGainM);
+        setText('us-cal', s.totalCalories);
+      }
+    } catch (e) { /* ignore */ }
   }
 
   async function deleteActivity(id) {
