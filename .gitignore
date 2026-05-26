@@ -1,0 +1,14 @@
+target/
+data/
+*.class
+*.jar
+*.log
+.idea/
+*.iml
+.DS_Store
+.claude/
+
+# Secrets — never commit
+application-local.properties
+src/main/resources/application-local.properties
+.env

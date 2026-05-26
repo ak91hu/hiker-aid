@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="HikerAid">
+    <meta name="theme-color" content="#1a2f1a">
+    <meta name="description" content="Advanced GPX analysis for serious hikers. Free, no account needed, works in any browser.">
+
+    <title>HikerAid — Advanced GPX Reader</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ UPLOAD SCREEN -->
+<div id="upload-screen" class="screen active">
+    <div class="user-bar" id="user-bar">
+        <a id="login-btn" href="/oauth2/authorization/google" class="login-btn">Sign in with Google</a>
+        <div id="user-info" class="user-info hidden">
+            <img id="user-avatar" class="avatar" alt="">
+            <span id="user-name"></span>
+            <a href="/api/logout" id="logout-btn" class="logout-link">Logout</a>
+        </div>
+    </div>
+    <div class="upload-hero">
+        <div class="hero-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 4 L52 48 H12 Z" fill="#40916C" opacity="0.9"/>
+                <path d="M22 20 L38 48 H6 Z" fill="#2D6A4F" opacity="0.7"/>
+                <circle cx="46" cy="18" r="5" fill="#74C69D"/>
+                <path d="M46 18 Q52 28 56 36" stroke="#74C69D" stroke-width="2" stroke-dasharray="3,3" fill="none"/>
+            </svg>
+        </div>
+        <h1>HikerAid</h1>
+        <p class="hero-tagline">Know when to turn back</p>
+    </div>
+
+    <div class="upload-card" id="upload-card">
+        <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Drop GPX file here or click to browse">
+            <div class="drop-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                    <path d="M12 12v4m0-4l-2 2m2-2l2 2"/>
+                </svg>
+            </div>
+            <p class="drop-title">Drop your GPX file here</p>
+            <p class="drop-sub">or tap to browse</p>
+            <input type="file" id="file-input" accept=".gpx" style="display:none" aria-hidden="true">
+        </div>
+
+        <div class="settings-row">
+            <label class="setting-label" for="weight-input">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <path d="M10 2a4 4 0 00-4 4 4 4 0 004 4 4 4 0 004-4 4 4 0 00-4-4zm0 10c-4.4 0-8 2-8 4v1h16v-1c0-2-3.6-4-8-4z"/>
+                </svg>
+                Body weight
+            </label>
+            <div class="weight-input-group">
+                <input type="number" id="weight-input" value="70" min="30" max="250" step="1">
+                <span class="unit">kg</span>
+            </div>
+        </div>
+
+        <div class="settings-row">
+            <label class="setting-label" for="fitness-select">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <path d="M10 3.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM2 10a8 8 0 1116 0 8 8 0 01-16 0z"/>
+                    <path d="M10 6v4l3 2"/>
+                </svg>
+                Fitness level
+            </label>
+            <select id="fitness-select">
+                <option value="1">Beginner</option>
+                <option value="2">Below avg</option>
+                <option value="3" selected>Average</option>
+                <option value="4">Fit</option>
+                <option value="5">Very fit</option>
+            </select>
+        </div>
+
+        <div class="settings-row">
+            <label class="setting-label" for="start-time">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 1.5a6.5 6.5 0 110 13 6.5 6.5 0 010-13zM10 5v5.5l3.5 2"/>
+                </svg>
+                Start time
+            </label>
+            <input type="time" id="start-time" value="08:00">
+        </div>
+
+        <div id="upload-error" class="error-banner hidden"></div>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <span class="feature-icon">&#9888;&#65039;</span>
+            <h3>Safety Analysis</h3>
+            <p>Turnaround point, daylight margin, point of no return — plan to get home safe</p>
+        </div>
+        <div class="feature-card">
+            <span class="feature-icon">&#127939;</span>
+            <h3>Your Pace, Your Time</h3>
+            <p>Tobler's function adjusted to your fitness — not a generic estimate</p>
+        </div>
+        <div class="feature-card">
+            <span class="feature-icon">&#127912;</span>
+            <h3>Gradient Colours</h3>
+            <p>Track coloured by steepness — instantly see where the climbs are</p>
+        </div>
+        <div class="feature-card">
+            <span class="feature-icon">&#128225;</span>
+            <h3>Works Offline</h3>
+            <p>Installs as a PWA — use the app without internet once loaded</p>
+        </div>
+    </div>
+
+    <button id="btn-record" class="record-btn">Record a Hike</button>
+
+    <div id="activities-section" class="activities-section hidden">
+        <h2 class="activities-title">My Activities</h2>
+        <div id="activities-list" class="activities-list"></div>
+    </div>
+
+    <p class="footer-note">Free. Works offline. Sign in to save activities.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ LOADING SCREEN -->
+<div id="loading-screen" class="screen">
+    <div class="loading-content">
+        <div class="spinner"></div>
+        <p class="loading-title">Analysing your route</p>
+        <p class="loading-sub">Calculating Tobler time, gradient profile & difficulty score…</p>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ VIEWER SCREEN -->
+<div id="viewer-screen" class="screen">
+
+    <!-- Header -->
+    <header class="viewer-header">
+        <button id="btn-back" class="header-btn" aria-label="Back to upload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <path d="M19 12H5M12 5l-7 7 7 7"/>
+            </svg>
+        </button>
+        <h2 id="route-name" class="header-title">Route</h2>
+        <div class="header-actions">
+            <button id="btn-track" class="header-btn track-btn" aria-label="Toggle GPS tracking" title="Live GPS tracking">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+                <span>Track</span>
+            </button>
+            <button id="btn-save-activity" class="header-btn save-btn hidden" aria-label="Save activity" title="Save activity">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+            </button>
+            <button id="btn-download-gpx" class="header-btn hidden" aria-label="Download GPX" title="Download GPX file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/>
+                </svg>
+            </button>
+            <button id="btn-export" class="header-btn" aria-label="Download summary" title="Download route summary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+            </button>
+            <button id="btn-layers" class="header-btn" aria-label="Change map layer" title="Map layers">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Map -->
+    <div id="map" aria-label="Route map"></div>
+
+    <!-- Gradient legend (overlaid on map) -->
+    <div id="gradient-legend" class="gradient-legend">
+        <div class="legend-row"><span class="swatch" style="background:#0077B6"></span><span>Steep down</span></div>
+        <div class="legend-row"><span class="swatch" style="background:#74C69D"></span><span>Flat</span></div>
+        <div class="legend-row"><span class="swatch" style="background:#F9C74F"></span><span>Moderate up</span></div>
+        <div class="legend-row"><span class="swatch" style="background:#E76F51"></span><span>Steep up</span></div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip" id="stats-strip" role="region" aria-label="Route statistics">
+        <div class="stat-card safety-card" id="card-daylight">
+            <span class="stat-value" id="stat-daylight">—</span>
+            <span class="stat-label">Daylight</span>
+        </div>
+        <div class="stat-card" id="card-sunset">
+            <span class="stat-value" id="stat-sunset">—</span>
+            <span class="stat-label">Sunset</span>
+        </div>
+        <div class="stat-card" id="card-turnaround">
+            <span class="stat-value" id="stat-turnaround">—</span>
+            <span class="stat-label">Turn back at</span>
+        </div>
+        <div class="stat-card highlight" id="card-distance">
+            <span class="stat-value" id="stat-distance">—</span>
+            <span class="stat-label">Distance</span>
+        </div>
+        <div class="stat-card highlight" id="card-time">
+            <span class="stat-value" id="stat-time">—</span>
+            <span class="stat-label">Est. Time</span>
+        </div>
+        <div class="stat-card" id="card-ascent">
+            <span class="stat-value" id="stat-ascent">—</span>
+            <span class="stat-label">Ascent</span>
+        </div>
+        <div class="stat-card" id="card-descent">
+            <span class="stat-value" id="stat-descent">—</span>
+            <span class="stat-label">Descent</span>
+        </div>
+        <div class="stat-card" id="card-max-ele">
+            <span class="stat-value" id="stat-max-ele">—</span>
+            <span class="stat-label">Max Elev.</span>
+        </div>
+        <div class="stat-card" id="card-min-ele">
+            <span class="stat-value" id="stat-min-ele">—</span>
+            <span class="stat-label">Min Elev.</span>
+        </div>
+        <div class="stat-card" id="card-calories">
+            <span class="stat-value" id="stat-calories">—</span>
+            <span class="stat-label">Calories</span>
+        </div>
+        <div class="stat-card" id="card-speed">
+            <span class="stat-value" id="stat-speed">—</span>
+            <span class="stat-label">Avg Speed</span>
+        </div>
+        <div class="stat-card" id="card-avg-hr">
+            <span class="stat-value" id="stat-avg-hr">—</span>
+            <span class="stat-label">Avg HR</span>
+        </div>
+        <div class="stat-card" id="card-max-hr">
+            <span class="stat-value" id="stat-max-hr">—</span>
+            <span class="stat-label">Max HR</span>
+        </div>
+        <div class="stat-card difficulty-card" id="card-difficulty">
+            <span class="stat-value" id="stat-difficulty">—</span>
+            <span class="stat-label">Difficulty</span>
+        </div>
+    </div>
+
+    <!-- GPS tracking panel (shown during live tracking) -->
+    <div id="tracking-panel" class="tracking-panel hidden" role="region" aria-label="Live tracking">
+        <div class="tracking-header">
+            <span class="tracking-dot pulse"></span>
+            <span class="tracking-title">Live Tracking</span>
+            <button id="btn-stop-track" class="stop-btn">Stop</button>
+        </div>
+        <div class="tracking-stats">
+            <div class="t-stat"><span id="t-progress">0%</span><span>Complete</span></div>
+            <div class="t-stat"><span id="t-remaining-dist">—</span><span>Remaining</span></div>
+            <div class="t-stat"><span id="t-remaining-time">—</span><span>Est. left</span></div>
+            <div class="t-stat"><span id="t-current-ele">—</span><span>Elevation</span></div>
+        </div>
+    </div>
+
+    <!-- Elevation profile panel -->
+    <div class="elevation-panel" id="elevation-panel">
+        <div class="elevation-header" id="elevation-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="elevation-chart-container">
+            <span class="elevation-title">Elevation Profile</span>
+            <div class="elevation-header-right">
+                <span id="hover-info" class="hover-info"></span>
+                <svg id="elevation-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M18 15l-6-6-6 6"/>
+                </svg>
+            </div>
+        </div>
+        <div id="elevation-chart-container">
+            <canvas id="elevation-chart" aria-label="Elevation profile chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Recording overlay -->
+    <div id="recording-overlay" class="recording-overlay hidden">
+        <div class="rec-stats-bar">
+            <div class="rec-stat"><span class="rec-val" id="rec-distance">0.00</span><span class="rec-lbl">km</span></div>
+            <div class="rec-stat"><span class="rec-val" id="rec-time">0:00</span><span class="rec-lbl">time</span></div>
+            <div class="rec-stat"><span class="rec-val" id="rec-ele">--</span><span class="rec-lbl">elev</span></div>
+        </div>
+        <button id="btn-rec-stop" class="rec-stop-btn">Stop Recording</button>
+    </div>
+
+    <!-- Recording complete dialog -->
+    <div id="rec-complete" class="rec-complete hidden">
+        <p class="rec-complete-title">Recording Complete</p>
+        <p id="rec-complete-summary" class="rec-complete-summary"></p>
+        <div class="rec-complete-actions">
+            <button id="btn-rec-analyze" class="rec-action-btn primary">Analyze Route</button>
+            <button id="btn-rec-download-gpx" class="rec-action-btn">Download GPX</button>
+            <button id="btn-rec-discard" class="rec-action-btn danger">Discard</button>
+        </div>
+    </div>
+
+    <!-- Layer switcher panel -->
+    <div id="layer-panel" class="layer-panel hidden" role="dialog" aria-label="Map layer selector">
+        <div class="layer-panel-header">
+            <span>Map Layer</span>
+            <button id="btn-close-layers" class="close-btn" aria-label="Close layer panel">✕</button>
+        </div>
+        <div class="layer-options">
+            <label class="layer-option active" data-layer="osm">
+                <input type="radio" name="layer" value="osm" checked>
+                <span class="layer-thumb osm-thumb"></span>
+                <span>Streets</span>
+            </label>
+            <label class="layer-option" data-layer="topo">
+                <input type="radio" name="layer" value="topo">
+                <span class="layer-thumb topo-thumb"></span>
+                <span>Topo</span>
+            </label>
+            <label class="layer-option" data-layer="satellite">
+                <input type="radio" name="layer" value="satellite">
+                <span class="layer-thumb sat-thumb"></span>
+                <span>Satellite</span>
+            </label>
+            <label class="layer-option" data-layer="dark">
+                <input type="radio" name="layer" value="dark">
+                <span class="layer-thumb dark-thumb"></span>
+                <span>Dark</span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="/js/map.js"></script>
+<script src="/js/elevation.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

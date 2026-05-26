@@ -1,0 +1,734 @@
+/* HikerAid — Main application controller */
+
+(function () {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let routeData = null;
+  let currentGpxText = null;
+  let currentUser = null;
+  let gpsWatchId = null;
+  let isTracking = false;
+  let elevationCollapsed = false;
+
+  // Recording state
+  let isRecording = false;
+  let recordedPoints = [];
+  let recordTotalDistM = 0;
+  let recordStartTime = null;
+  let recordWatchId = null;
+  let recordPolyline = null;
+  let recordInterval = null;
+
+  // ── DOM refs ──────────────────────────────────────────────────────────
+  const screens = {
+    upload:  document.getElementById('upload-screen'),
+    loading: document.getElementById('loading-screen'),
+    viewer:  document.getElementById('viewer-screen'),
+  };
+
+  function showScreen(name) {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+    if (name === 'viewer') {
+      requestAnimationFrame(() => {
+        HikerMap.getMap()?.invalidateSize();
+      });
+    }
+  }
+
+  // ── Auth ───────────────────────────────────────────────────────────────
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+      if (data.loggedIn) {
+        currentUser = data;
+        document.getElementById('login-btn').classList.add('hidden');
+        const info = document.getElementById('user-info');
+        info.classList.remove('hidden');
+        document.getElementById('user-avatar').src = data.avatar || '';
+        document.getElementById('user-name').textContent = data.name || data.email;
+        document.getElementById('btn-save-activity').classList.remove('hidden');
+        loadActivities();
+      }
+    } catch (e) { /* offline or error — ignore */ }
+  }
+
+  // ── Activities ─────────────────────────────────────────────────────────
+  async function loadActivities() {
+    try {
+      const res = await fetch('/api/activities');
+      if (!res.ok) return;
+      const activities = await res.json();
+      const section = document.getElementById('activities-section');
+      const list = document.getElementById('activities-list');
+
+      if (activities.length === 0) {
+        section.classList.add('hidden');
+        return;
+      }
+
+      section.classList.remove('hidden');
+      list.innerHTML = '';
+      for (const a of activities) {
+        const card = document.createElement('div');
+        card.className = 'activity-card';
+        const timeStr = a.movingTimeMinutes ? formatTime(a.movingTimeMinutes) : '--';
+
+        const mainRow = document.createElement('div');
+        mainRow.className = 'activity-main';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'activity-name';
+        nameEl.textContent = a.name;
+        const dateEl = document.createElement('span');
+        dateEl.className = 'activity-date';
+        dateEl.textContent = new Date(a.recordedAt).toLocaleDateString();
+        mainRow.append(nameEl, dateEl);
+
+        const statsRow = document.createElement('div');
+        statsRow.className = 'activity-stats-row';
+        for (const txt of [`${a.distanceKm} km`, timeStr, `${a.elevationGainM}m gain`]) {
+          const sp = document.createElement('span');
+          sp.textContent = txt;
+          statsRow.appendChild(sp);
+        }
+        const diffSpan = document.createElement('span');
+        diffSpan.className = 'activity-diff';
+        diffSpan.textContent = a.difficulty;
+        statsRow.appendChild(diffSpan);
+
+        const actions = document.createElement('div');
+        actions.className = 'activity-actions';
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'activity-view-btn';
+        viewBtn.textContent = 'View';
+        viewBtn.addEventListener('click', () => viewActivity(a.id));
+        const delBtn = document.createElement('button');
+        delBtn.className = 'activity-delete-btn';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', () => deleteActivity(a.id));
+        actions.append(viewBtn, delBtn);
+
+        card.append(mainRow, statsRow, actions);
+        list.appendChild(card);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  async function viewActivity(id) {
+    showScreen('loading');
+    try {
+      const res = await fetch(`/api/activities/${id}`);
+      if (!res.ok) { showScreen('upload'); return; }
+      const activity = await res.json();
+
+      const gpxBlob = new Blob([activity.gpxData], { type: 'application/gpx+xml' });
+      const form = new FormData();
+      form.append('file', gpxBlob, 'activity.gpx');
+      form.append('weight', document.getElementById('weight-input').value || '70');
+      form.append('fitness', document.getElementById('fitness-select').value || '3');
+      const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
+      form.append('startHour', parseInt(startTimeParts[0]) || 8);
+      form.append('startMinute', parseInt(startTimeParts[1]) || 0);
+
+      const analyzeRes = await fetch('/api/analyze', { method: 'POST', body: form });
+      const data = await analyzeRes.json();
+
+      if (!analyzeRes.ok) { showScreen('upload'); return; }
+
+      currentGpxText = activity.gpxData;
+      routeData = data;
+      renderViewer(data);
+      showScreen('viewer');
+    } catch (e) {
+      showScreen('upload');
+    }
+  }
+
+  async function deleteActivity(id) {
+    if (!confirm('Delete this activity?')) return;
+    try {
+      await fetch(`/api/activities/${id}`, { method: 'DELETE' });
+      loadActivities();
+    } catch (e) { /* ignore */ }
+  }
+
+  async function saveActivity() {
+    if (!routeData || !currentUser || !currentGpxText) return;
+    const s = routeData.stats;
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: routeData.name || 'Unnamed route',
+          gpxData: currentGpxText,
+          distanceKm: s.distanceKm,
+          elevationGainM: s.elevationGainM,
+          elevationLossM: s.elevationLossM,
+          movingTimeMinutes: s.estimatedTimeMinutes,
+          totalTimeMinutes: s.totalTimeMinutes,
+          calories: s.estimatedCalories,
+          difficulty: s.difficulty,
+          difficultyScore: s.difficultyScore,
+          maxElevationM: s.maxElevationM,
+          minElevationM: s.minElevationM,
+          avgSpeedKmh: s.avgSpeedKmh
+        })
+      });
+      if (res.ok) {
+        const saveBtn = document.getElementById('btn-save-activity');
+        saveBtn.textContent = 'Saved';
+        saveBtn.disabled = true;
+        setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // ── File upload ────────────────────────────────────────────────────────
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const weightInput = document.getElementById('weight-input');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) processFile(fileInput.files[0]);
+    fileInput.value = '';
+  });
+
+  function processFile(file) {
+    if (!file.name.toLowerCase().endsWith('.gpx')) {
+      showError('Please select a .gpx file');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showError('File is too large — maximum 15 MB');
+      return;
+    }
+    hideError();
+    uploadFile(file);
+  }
+
+  async function uploadFile(file) {
+    showScreen('loading');
+
+    currentGpxText = await file.text();
+
+    const weight = parseFloat(weightInput.value) || 70;
+    const fitness = document.getElementById('fitness-select').value || '3';
+    const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
+    const startHour = parseInt(startTimeParts[0]) || 8;
+    const startMinute = parseInt(startTimeParts[1]) || 0;
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('weight', weight);
+    form.append('fitness', fitness);
+    form.append('startHour', startHour);
+    form.append('startMinute', startMinute);
+
+    try {
+      const res = await fetch('/api/analyze', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showScreen('upload');
+        showError(data.error || 'Analysis failed — please try another file');
+        return;
+      }
+
+      routeData = data;
+      document.getElementById('btn-download-gpx').classList.remove('hidden');
+      renderViewer(data);
+      showScreen('viewer');
+
+      try {
+        localStorage.setItem('hikerAid_lastRoute', JSON.stringify(data));
+      } catch (e) { /* quota exceeded */ }
+
+    } catch (err) {
+      showScreen('upload');
+      showError('Network error — check your connection and try again');
+    }
+  }
+
+  // ── Viewer rendering ───────────────────────────────────────────────────
+  function renderViewer(data) {
+    document.getElementById('route-name').textContent = data.name || 'Route';
+    document.getElementById('stats-strip').classList.remove('hidden');
+
+    const s = data.stats;
+
+    setText('stat-distance', s.distanceKm ? `${s.distanceKm} km` : '—');
+    setText('stat-time',     s.totalTimeMinutes ? formatTime(s.totalTimeMinutes) : '—');
+    setText('stat-ascent',   s.hasElevationData ? `${s.elevationGainM} m` : '—');
+    setText('stat-descent',  s.hasElevationData ? `${s.elevationLossM} m` : '—');
+    setText('stat-max-ele',  s.hasElevationData ? `${s.maxElevationM} m` : '—');
+    setText('stat-min-ele',  s.hasElevationData ? `${s.minElevationM} m` : '—');
+    setText('stat-calories', s.estimatedCalories ? `${Math.round(s.estimatedCalories)} kcal` : '—');
+    setText('stat-speed',    s.avgSpeedKmh ? `${s.avgSpeedKmh} km/h` : '—');
+
+    const timeCard = document.getElementById('card-time');
+    if (timeCard && s.estimatedTimeMinutes && s.totalTimeMinutes > s.estimatedTimeMinutes) {
+      timeCard.title = `Moving time: ${formatTime(s.estimatedTimeMinutes)}`;
+    }
+
+    if (s.hasHeartRateData && s.avgHeartRate) {
+      setText('stat-avg-hr', `${s.avgHeartRate} bpm`);
+      setText('stat-max-hr', `${s.maxHeartRate} bpm`);
+      document.getElementById('card-avg-hr').style.display = '';
+      document.getElementById('card-max-hr').style.display = '';
+    } else {
+      document.getElementById('card-avg-hr').style.display = 'none';
+      document.getElementById('card-max-hr').style.display = 'none';
+    }
+
+    const diffEl = document.getElementById('stat-difficulty');
+    diffEl.textContent = s.difficulty || '—';
+    diffEl.className = `stat-value difficulty-${s.difficulty.toLowerCase().replace(' ', '-')}`;
+
+    if (currentUser) {
+      const saveBtn = document.getElementById('btn-save-activity');
+      saveBtn.classList.remove('hidden');
+      saveBtn.disabled = false;
+    }
+
+    HikerMap.renderRoute(data);
+    renderSafety(data);
+
+    if (data.elevationProfile && data.elevationProfile.length > 0) {
+      document.getElementById('elevation-panel').style.display = '';
+      document.getElementById('gradient-legend').style.display = '';
+      document.getElementById('viewer-screen').style.setProperty('--elev-h', '150px');
+      HikerElevation.build(data.elevationProfile);
+      HikerElevation.setHoverCallback((profileIdx, profilePt) => {
+        const ratio = profileIdx / (data.elevationProfile.length - 1);
+        const trackIdx = Math.round(ratio * (data.trackPoints.length - 1));
+        HikerMap.showPositionAtIndex(trackIdx);
+        HikerElevation.showHoverInfo(profilePt);
+      });
+    } else {
+      document.getElementById('elevation-panel').style.display = 'none';
+      document.getElementById('gradient-legend').style.display = 'none';
+      document.getElementById('viewer-screen').style.setProperty('--elev-h', '0px');
+    }
+  }
+
+  // ── Safety rendering ────────────────────────────────────────────────────
+  function renderSafety(data) {
+    const sf = data.safety;
+    if (!sf) {
+      document.getElementById('card-daylight').style.display = 'none';
+      document.getElementById('card-sunset').style.display = 'none';
+      document.getElementById('card-turnaround').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('card-daylight').style.display = '';
+    document.getElementById('card-sunset').style.display = '';
+    document.getElementById('card-turnaround').style.display = '';
+
+    const daylightEl = document.getElementById('card-daylight');
+    const marginAbs = Math.abs(sf.marginMinutes);
+    if (sf.daylightSufficient && sf.marginMinutes > 60) {
+      setText('stat-daylight', `+${formatTime(sf.marginMinutes)}`);
+      daylightEl.className = 'stat-card safety-card safety-ok';
+    } else if (sf.daylightSufficient) {
+      setText('stat-daylight', `+${formatTime(sf.marginMinutes)}`);
+      daylightEl.className = 'stat-card safety-card safety-caution';
+    } else {
+      setText('stat-daylight', `-${formatTime(marginAbs)}`);
+      daylightEl.className = 'stat-card safety-card safety-danger';
+    }
+
+    setText('stat-sunset', `~${sf.sunsetEstimate}`);
+    setText('stat-turnaround', `${sf.turnaroundDistanceKm} km`);
+
+    HikerMap.showSafetyMarkers(data.trackPoints, sf);
+  }
+
+  // ── Recording ──────────────────────────────────────────────────────────
+  document.getElementById('btn-record').addEventListener('click', startRecording);
+  document.getElementById('btn-rec-stop').addEventListener('click', stopRecording);
+  document.getElementById('btn-rec-analyze').addEventListener('click', analyzeRecording);
+  document.getElementById('btn-rec-download-gpx').addEventListener('click', downloadRecordedGpx);
+  document.getElementById('btn-rec-discard').addEventListener('click', discardRecording);
+
+  function startRecording() {
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not available in your browser.');
+      return;
+    }
+
+    isRecording = true;
+    recordedPoints = [];
+    recordTotalDistM = 0;
+    recordStartTime = Date.now();
+
+    showScreen('viewer');
+    document.getElementById('recording-overlay').classList.remove('hidden');
+    document.getElementById('rec-complete').classList.add('hidden');
+    document.getElementById('stats-strip').classList.add('hidden');
+    document.getElementById('elevation-panel').style.display = 'none';
+    document.getElementById('gradient-legend').style.display = 'none';
+    document.getElementById('viewer-screen').style.setProperty('--elev-h', '0px');
+    document.getElementById('route-name').textContent = 'Recording...';
+
+    if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+
+    recordWatchId = navigator.geolocation.watchPosition(
+      onRecordPosition,
+      err => console.warn('GPS error:', err.message),
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+
+    recordInterval = setInterval(updateRecordTimer, 1000);
+  }
+
+  function onRecordPosition(pos) {
+    const pt = {
+      lat: pos.coords.latitude,
+      lon: pos.coords.longitude,
+      ele: pos.coords.altitude,
+      time: new Date().toISOString()
+    };
+    recordedPoints.push(pt);
+
+    const latlng = [pt.lat, pt.lon];
+    if (!recordPolyline) {
+      recordPolyline = L.polyline([latlng], { color: '#52b788', weight: 4 }).addTo(HikerMap.getMap());
+      HikerMap.getMap()?.setView(latlng, 16);
+    } else {
+      recordPolyline.addLatLng(latlng);
+    }
+    HikerMap.getMap()?.panTo(latlng, { animate: true });
+
+    if (recordedPoints.length > 1) {
+      const prev = recordedPoints[recordedPoints.length - 2];
+      recordTotalDistM += haversine(prev.lat, prev.lon, pt.lat, pt.lon);
+    }
+    setText('rec-distance', (recordTotalDistM / 1000).toFixed(2));
+    if (pt.ele != null) setText('rec-ele', `${Math.round(pt.ele)}m`);
+  }
+
+  function updateRecordTimer() {
+    if (!recordStartTime) return;
+    const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    setText('rec-time', h > 0
+      ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      : `${m}:${String(s).padStart(2,'0')}`);
+  }
+
+  function stopRecording() {
+    if (recordWatchId !== null) { navigator.geolocation.clearWatch(recordWatchId); recordWatchId = null; }
+    if (recordInterval) { clearInterval(recordInterval); recordInterval = null; }
+    isRecording = false;
+
+    document.getElementById('recording-overlay').classList.add('hidden');
+
+    if (recordedPoints.length < 2) {
+      alert('Not enough points recorded.');
+      showScreen('upload');
+      return;
+    }
+
+    const elapsedMin = Math.floor((Date.now() - recordStartTime) / 60000);
+
+    document.getElementById('rec-complete-summary').textContent =
+      `${(recordTotalDistM / 1000).toFixed(1)} km · ${formatTime(elapsedMin)} · ${recordedPoints.length} points`;
+    document.getElementById('rec-complete').classList.remove('hidden');
+  }
+
+  function generateGpx(points) {
+    let gpx = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    gpx += '<gpx version="1.1" creator="HikerAid" xmlns="http://www.topografix.com/GPX/1/1">\n';
+    gpx += '  <trk>\n    <name>Recorded hike</name>\n    <trkseg>\n';
+    for (const p of points) {
+      gpx += `      <trkpt lat="${p.lat.toFixed(7)}" lon="${p.lon.toFixed(7)}">`;
+      if (p.ele != null) gpx += `<ele>${p.ele.toFixed(1)}</ele>`;
+      if (p.time) gpx += `<time>${p.time}</time>`;
+      gpx += '</trkpt>\n';
+    }
+    gpx += '    </trkseg>\n  </trk>\n</gpx>';
+    return gpx;
+  }
+
+  async function analyzeRecording() {
+    document.getElementById('rec-complete').classList.add('hidden');
+
+    const gpxText = generateGpx(recordedPoints);
+    currentGpxText = gpxText;
+
+    showScreen('loading');
+
+    const gpxBlob = new Blob([gpxText], { type: 'application/gpx+xml' });
+    const form = new FormData();
+    form.append('file', gpxBlob, 'recording.gpx');
+    form.append('weight', document.getElementById('weight-input').value || '70');
+    form.append('fitness', document.getElementById('fitness-select').value || '3');
+    const startTimeParts = (document.getElementById('start-time').value || '08:00').split(':');
+    form.append('startHour', parseInt(startTimeParts[0]) || 8);
+    form.append('startMinute', parseInt(startTimeParts[1]) || 0);
+
+    try {
+      const res = await fetch('/api/analyze', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { showScreen('upload'); return; }
+
+      routeData = data;
+      if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+      document.getElementById('btn-download-gpx').classList.remove('hidden');
+      renderViewer(data);
+      showScreen('viewer');
+    } catch (e) {
+      showScreen('upload');
+    }
+  }
+
+  function downloadRecordedGpx() {
+    const gpx = currentGpxText || generateGpx(recordedPoints);
+    if (!gpx) return;
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const name = (routeData?.name || 'hikeraid_' + new Date().toISOString().slice(0,10)).replace(/[^a-z0-9]/gi, '_');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.gpx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function discardRecording() {
+    document.getElementById('rec-complete').classList.add('hidden');
+    if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+    recordedPoints = [];
+    showScreen('upload');
+  }
+
+  // ── Back button ────────────────────────────────────────────────────────
+  document.getElementById('btn-back').addEventListener('click', () => {
+    stopTracking();
+    if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+    document.getElementById('recording-overlay').classList.add('hidden');
+    document.getElementById('rec-complete').classList.add('hidden');
+    document.getElementById('btn-download-gpx').classList.add('hidden');
+    showScreen('upload');
+  });
+
+  // ── Save activity ─────────────────────────────────────────────────────
+  const saveBtn = document.getElementById('btn-save-activity');
+  saveBtn.dataset.originalHtml = saveBtn.innerHTML;
+  saveBtn.addEventListener('click', saveActivity);
+
+  // ── Download GPX ──────────────────────────────────────────────────────
+  document.getElementById('btn-download-gpx').addEventListener('click', downloadRecordedGpx);
+
+  // ── Elevation panel toggle ─────────────────────────────────────────────
+  document.getElementById('elevation-toggle').addEventListener('click', toggleElevation);
+  document.getElementById('elevation-toggle').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') toggleElevation();
+  });
+
+  function toggleElevation() {
+    const panel = document.getElementById('elevation-panel');
+    elevationCollapsed = !elevationCollapsed;
+    panel.classList.toggle('collapsed', elevationCollapsed);
+    panel.querySelector('#elevation-toggle').setAttribute('aria-expanded', !elevationCollapsed);
+
+    document.getElementById('viewer-screen').style.setProperty('--elev-h', elevationCollapsed ? '36px' : '150px');
+    setTimeout(() => HikerMap.getMap()?.invalidateSize(), 250);
+  }
+
+  // ── Layer switcher ─────────────────────────────────────────────────────
+  document.getElementById('btn-layers').addEventListener('click', () => {
+    document.getElementById('layer-panel').classList.toggle('hidden');
+  });
+  document.getElementById('btn-close-layers').addEventListener('click', () => {
+    document.getElementById('layer-panel').classList.add('hidden');
+  });
+
+  document.querySelectorAll('.layer-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const name = opt.dataset.layer;
+      HikerMap.setLayer(name);
+      document.querySelectorAll('.layer-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      document.getElementById('layer-panel').classList.add('hidden');
+    });
+  });
+
+  // ── Export / download ──────────────────────────────────────────────────
+  document.getElementById('btn-export').addEventListener('click', exportSummary);
+
+  function exportSummary() {
+    if (!routeData) return;
+    const s = routeData.stats;
+    const lines = [
+      `Route: ${routeData.name || 'Unnamed'}`,
+      ``,
+      `Distance:       ${s.distanceKm} km`,
+      `Moving time:    ${formatTime(s.estimatedTimeMinutes)}`,
+      `Total time:     ${formatTime(s.totalTimeMinutes)}`,
+      `Elevation gain: ${s.elevationGainM} m`,
+      `Elevation loss: ${s.elevationLossM} m`,
+      `Max elevation:  ${s.maxElevationM} m`,
+      `Min elevation:  ${s.minElevationM} m`,
+      `Max gradient:   ${s.maxGradientPct}%`,
+      `Avg speed:      ${s.avgSpeedKmh} km/h`,
+      `Calories:       ${Math.round(s.estimatedCalories)} kcal`,
+      `Difficulty:     ${s.difficulty} (${s.difficultyScore}/100)`,
+    ];
+    if (s.hasHeartRateData && s.avgHeartRate) {
+      lines.push(`Avg heart rate: ${s.avgHeartRate} bpm`);
+      lines.push(`Max heart rate: ${s.maxHeartRate} bpm`);
+    }
+    const sf = routeData.safety;
+    if (sf) {
+      lines.push('');
+      lines.push('--- Safety Analysis ---');
+      lines.push(`Fitness:        ${sf.fitnessLabel} (${sf.paceFactor}x pace)`);
+      lines.push(`Sunset:         ~${sf.sunsetEstimate}`);
+      lines.push(`Daylight margin: ${sf.marginMinutes >= 0 ? '+' : ''}${formatTime(Math.abs(sf.marginMinutes))}${sf.marginMinutes < 0 ? ' (INSUFFICIENT)' : ''}`);
+      lines.push(`Turn back at:   ${sf.turnaroundDistanceKm} km`);
+      lines.push(`Point of no return: ${sf.pointOfNoReturnKm} km`);
+    }
+    lines.push('', 'Analysed by HikerAid');
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(routeData.name || 'route').replace(/[^a-z0-9]/gi, '_')}_summary.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── GPS Live Tracking ──────────────────────────────────────────────────
+  document.getElementById('btn-track').addEventListener('click', toggleTracking);
+  document.getElementById('btn-stop-track').addEventListener('click', stopTracking);
+
+  function toggleTracking() {
+    if (isTracking) stopTracking();
+    else startTracking();
+  }
+
+  function startTracking() {
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not available in your browser.');
+      return;
+    }
+    if (!routeData || !routeData.trackPoints || routeData.trackPoints.length === 0) return;
+
+    isTracking = true;
+    document.getElementById('btn-track').classList.add('active');
+    document.getElementById('tracking-panel').classList.remove('hidden');
+
+    gpsWatchId = navigator.geolocation.watchPosition(
+      pos => onGpsUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.altitude),
+      err => { console.warn('GPS error:', err.message); },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+    );
+  }
+
+  function onGpsUpdate(lat, lon, altM) {
+    HikerMap.updateGpsPosition(lat, lon);
+
+    const pts = routeData.trackPoints;
+    const nearestIdx = HikerMap.nearestPointIndex(lat, lon);
+
+    const progressPct = pts.length > 1 ? Math.round((nearestIdx / (pts.length - 1)) * 100) : 0;
+
+    const remainingPts = pts.slice(nearestIdx);
+    let remainDist = 0;
+    for (let i = 1; i < remainingPts.length; i++) {
+      remainDist += haversine(remainingPts[i-1][0], remainingPts[i-1][1], remainingPts[i][0], remainingPts[i][1]);
+    }
+    const remainKm = remainDist / 1000;
+    const avgSpeedKmh = routeData.stats.avgSpeedKmh || 3.5;
+    const remainMinutes = Math.round((remainKm / avgSpeedKmh) * 60);
+
+    setText('t-progress', `${progressPct}%`);
+    setText('t-remaining-dist', `${remainKm.toFixed(1)} km`);
+    setText('t-remaining-time', formatTime(remainMinutes));
+    setText('t-current-ele', altM != null ? `${Math.round(altM)} m` : '—');
+  }
+
+  function stopTracking() {
+    if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+    isTracking = false;
+    HikerMap.clearGpsMarker();
+    document.getElementById('btn-track').classList.remove('active');
+    document.getElementById('tracking-panel').classList.add('hidden');
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function formatTime(minutes) {
+    if (!minutes) return '—';
+    const h = Math.floor(Math.abs(minutes) / 60);
+    const m = Math.abs(minutes) % 60;
+    return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m` : `${m}m`;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('upload-error');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  function hideError() {
+    document.getElementById('upload-error').classList.add('hidden');
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  HikerMap.init();
+  checkAuth();
+
+  const cached = localStorage.getItem('hikerAid_lastRoute');
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2d1e;border:1px solid rgba(116,198,157,0.3);border-radius:10px;padding:10px 16px;font-size:0.8rem;color:#74C69D;cursor:pointer;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+      banner.textContent = `Load "${data.name || 'last route'}"`;
+      banner.addEventListener('click', () => {
+        banner.remove();
+        routeData = data;
+        renderViewer(data);
+        showScreen('viewer');
+      });
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 6000);
+    } catch (e) { localStorage.removeItem('hikerAid_lastRoute'); }
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+})();
