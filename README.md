@@ -95,6 +95,19 @@ Health check: `curl http://localhost:8080/api/health`
 
 ---
 
+## Deploy to Render (one click)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ak91hu/hiker-aid)
+
+1. Click the button above, sign in with GitHub
+2. Render prompts for `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — paste your values
+3. Click **Apply** — Render builds the Docker image and starts the service
+4. Once live, add `https://<your-app>.onrender.com/login/oauth2/code/google` as an authorized redirect URI in your [Google Cloud OAuth credentials](https://console.cloud.google.com/apis/credentials)
+
+After initial setup, every push to `main` auto-deploys via Render's GitHub integration. The GitHub Actions CI pipeline also verifies every push and PR.
+
+---
+
 ## Google OAuth Setup
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) > APIs & Services > Credentials

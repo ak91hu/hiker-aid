@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: hikerAid
+    name: hikeraid
     runtime: docker
     plan: free
+    region: frankfurt
     dockerfilePath: ./Dockerfile
+    autoDeploy: true
     envVars:
       - key: GOOGLE_CLIENT_ID
         sync: false
