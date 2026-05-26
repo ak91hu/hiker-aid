@@ -18,6 +18,7 @@ public class UserEntity {
     private String name;
     private String avatarUrl;
     private LocalDateTime createdAt;
+    private boolean admin;
 
     protected UserEntity() {}
 
@@ -34,8 +35,11 @@ public class UserEntity {
     public String getEmail() { return email; }
     public String getName() { return name; }
     public String getAvatarUrl() { return avatarUrl; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public boolean isAdmin() { return admin; }
 
     public void setEmail(String email) { this.email = email; }
     public void setName(String name) { this.name = name; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+    public void setAdmin(boolean admin) { this.admin = admin; }
 }

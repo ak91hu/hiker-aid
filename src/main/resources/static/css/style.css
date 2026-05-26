@@ -198,18 +198,27 @@ html, body {
   align-items: center;
   gap: 8px;
 }
-.login-btn {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: 8px;
-  padding: 6px 14px;
-  color: var(--c-primary-lt);
+.google-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 20px;
+  padding: 8px 16px 8px 12px;
+  color: #3c4043;
   text-decoration: none;
-  font-size: 0.82rem;
-  font-weight: 600;
-  transition: background var(--trans);
+  font-family: 'Roboto', -apple-system, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.login-btn:hover { background: var(--c-surface-2); }
+.google-btn:hover { background: #f7f8f8; box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
+.google-btn:active { background: #eee; }
+.google-btn svg { flex-shrink: 0; }
 .user-info {
   display: flex;
   align-items: center;
@@ -225,6 +234,14 @@ html, body {
   margin-left: 4px;
 }
 .logout-link:hover { color: var(--c-danger); }
+.admin-link {
+  color: var(--c-warning);
+  font-size: 0.75rem;
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.admin-link:hover { text-decoration: underline; }
 
 /* ─── RECORD BUTTON ────────────────────────────────────────────────────── */
 .record-btn {

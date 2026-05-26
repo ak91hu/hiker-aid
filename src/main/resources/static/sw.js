@@ -1,6 +1,6 @@
 /* HikerAid Service Worker — offline-first PWA */
 
-const CACHE_NAME = 'hikerAid-v3';
+const CACHE_NAME = 'hikerAid-v4';
 const TILE_CACHE = 'hikerAid-tiles-v1';
 
 const APP_SHELL = [

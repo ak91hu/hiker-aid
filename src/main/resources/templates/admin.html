@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HikerAid — Admin</title>
+    <style>
+        :root {
+            --bg: #0d1f0d; --surface: #152015; --surface2: #1e2d1e;
+            --border: rgba(116,198,157,0.18); --primary: #40916C; --primary-lt: #74C69D;
+            --text: #e8f5e9; --muted: #8aab8a; --danger: #E76F51; --warning: #F9C74F;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 24px; background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 { font-size: 1.1rem; color: var(--primary-lt); }
+        .header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+        .header a:hover { color: var(--primary-lt); }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px; margin-bottom: 32px;
+        }
+        .stat-box {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 18px 16px; text-align: center;
+        }
+        .stat-num { font-size: 1.8rem; font-weight: 700; color: var(--primary-lt); }
+        .stat-lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+        .section { margin-bottom: 32px; }
+        .section h2 {
+            font-size: 0.95rem; font-weight: 600; color: var(--primary-lt);
+            margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th {
+            text-align: left; padding: 8px 12px; color: var(--muted);
+            font-weight: 600; font-size: 0.7rem; text-transform: uppercase;
+            letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
+        }
+        td { padding: 10px 12px; border-bottom: 1px solid rgba(116,198,157,0.08); }
+        tr:hover td { background: rgba(116,198,157,0.04); }
+        .avatar-sm { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 0.68rem; font-weight: 600;
+        }
+        .badge-admin { background: rgba(116,198,157,0.2); color: var(--primary-lt); }
+        .badge-user { background: rgba(138,171,138,0.15); color: var(--muted); }
+        .del-btn {
+            background: none; border: 1px solid var(--danger); border-radius: 6px;
+            color: var(--danger); font-size: 0.72rem; padding: 3px 10px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .del-btn:hover { background: rgba(231,111,81,0.15); }
+        .empty { color: var(--muted); font-style: italic; padding: 24px; text-align: center; }
+        .table-wrap { overflow-x: auto; }
+
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .container { padding: 16px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>HikerAid Admin</h1>
+        <a href="/">Back to app</a>
+    </div>
+
+    <div class="container">
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-box"><div class="stat-num" id="s-users">-</div><div class="stat-lbl">Users</div></div>
+            <div class="stat-box"><div class="stat-num" id="s-activities">-</div><div class="stat-lbl">Activities</div></div>
+            <div class="stat-box"><div class="stat-num" id="s-memory">-</div><div class="stat-lbl">Memory</div></div>
+            <div class="stat-box"><div class="stat-num" id="s-uptime">-</div><div class="stat-lbl">Uptime</div></div>
+            <div class="stat-box"><div class="stat-num" id="s-java">-</div><div class="stat-lbl">Java</div></div>
+        </div>
+
+        <div class="section">
+            <h2>Users</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Activities</th><th>Joined</th><th></th></tr></thead>
+                    <tbody id="users-body"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Recent Activities (last 100)</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Route</th><th>User</th><th>Distance</th><th>Time</th><th>Difficulty</th><th>Date</th><th></th></tr></thead>
+                    <tbody id="activities-body"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script>
+(async function() {
+    const [statsRes, usersRes, activitiesRes] = await Promise.all([
+        fetch('/api/admin/stats'),
+        fetch('/api/admin/users'),
+        fetch('/api/admin/activities')
+    ]);
+
+    if (statsRes.ok) {
+        const s = await statsRes.json();
+        document.getElementById('s-users').textContent = s.totalUsers;
+        document.getElementById('s-activities').textContent = s.totalActivities;
+        document.getElementById('s-memory').textContent = s.memoryUsedMb + '/' + s.memoryMaxMb + ' MB';
+        document.getElementById('s-uptime').textContent = s.uptime;
+        document.getElementById('s-java').textContent = s.javaVersion;
+    }
+
+    if (usersRes.ok) {
+        const users = await usersRes.json();
+        const tbody = document.getElementById('users-body');
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty">No users yet</td></tr>';
+        } else {
+            tbody.innerHTML = '';
+            for (const u of users) {
+                const tr = document.createElement('tr');
+                const avatarHtml = u.avatarUrl ? `<img src="${esc(u.avatarUrl)}" class="avatar-sm" alt="">` : '';
+                const roleClass = u.admin ? 'badge-admin' : 'badge-user';
+                const roleText = u.admin ? 'Admin' : 'User';
+                const date = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-';
+
+                const nameTd = document.createElement('td');
+                nameTd.innerHTML = avatarHtml;
+                nameTd.appendChild(document.createTextNode(u.name || '-'));
+
+                const emailTd = document.createElement('td');
+                emailTd.textContent = u.email || '-';
+
+                const roleTd = document.createElement('td');
+                roleTd.innerHTML = `<span class="badge ${roleClass}">${roleText}</span>`;
+
+                const countTd = document.createElement('td');
+                countTd.textContent = u.activityCount;
+
+                const dateTd = document.createElement('td');
+                dateTd.textContent = date;
+
+                const actionTd = document.createElement('td');
+                if (!u.admin) {
+                    const btn = document.createElement('button');
+                    btn.className = 'del-btn';
+                    btn.textContent = 'Delete';
+                    btn.addEventListener('click', async () => {
+                        if (!confirm(`Delete user ${u.name || u.email} and all their activities?`)) return;
+                        const r = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE' });
+                        if (r.ok) tr.remove();
+                    });
+                    actionTd.appendChild(btn);
+                }
+
+                tr.append(nameTd, emailTd, roleTd, countTd, dateTd, actionTd);
+                tbody.appendChild(tr);
+            }
+        }
+    }
+
+    if (activitiesRes.ok) {
+        const acts = await activitiesRes.json();
+        const tbody = document.getElementById('activities-body');
+        if (acts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty">No activities yet</td></tr>';
+        } else {
+            tbody.innerHTML = '';
+            for (const a of acts) {
+                const tr = document.createElement('tr');
+
+                const cells = [
+                    a.name || 'Unnamed',
+                    a.userEmail || a.userName || '-',
+                    a.distanceKm != null ? a.distanceKm + ' km' : '-',
+                    a.movingTimeMinutes ? fmtTime(a.movingTimeMinutes) : '-',
+                    a.difficulty || '-',
+                    a.recordedAt ? new Date(a.recordedAt).toLocaleDateString() : '-'
+                ];
+                for (const txt of cells) {
+                    const td = document.createElement('td');
+                    td.textContent = txt;
+                    tr.appendChild(td);
+                }
+
+                const actionTd = document.createElement('td');
+                const btn = document.createElement('button');
+                btn.className = 'del-btn';
+                btn.textContent = 'Delete';
+                btn.addEventListener('click', async () => {
+                    if (!confirm('Delete this activity?')) return;
+                    const r = await fetch(`/api/admin/activities/${a.id}`, { method: 'DELETE' });
+                    if (r.ok) tr.remove();
+                });
+                actionTd.appendChild(btn);
+                tr.appendChild(actionTd);
+
+                tbody.appendChild(tr);
+            }
+        }
+    }
+
+    function fmtTime(m) {
+        const h = Math.floor(m / 60);
+        const min = m % 60;
+        return h > 0 ? `${h}h ${String(min).padStart(2,'0')}m` : `${min}m`;
+    }
+
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+})();
+</script>
+</body>
+</html>

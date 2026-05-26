@@ -26,6 +26,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/api/analyze", "/api/health", "/api/user",
                     "/css/**", "/js/**", "/icons/**", "/sw.js", "/manifest.json").permitAll()
+                .requestMatchers("/admin", "/api/admin/**").authenticated()
                 .requestMatchers("/api/activities/**").authenticated()
                 .anyRequest().permitAll())
             .oauth2Login(oauth -> oauth

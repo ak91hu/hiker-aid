@@ -2,6 +2,7 @@ package com.hikerAid.service;
 
 import com.hikerAid.entity.UserEntity;
 import com.hikerAid.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Service;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+
+    @Value("${ADMIN_EMAIL:}")
+    private String adminEmail;
 
     public CustomOAuth2UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -34,8 +38,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setName(name);
             user.setAvatarUrl(avatar);
         }
-        userRepository.save(user);
 
+        if (adminEmail != null && !adminEmail.isBlank() && adminEmail.equalsIgnoreCase(email)) {
+            user.setAdmin(true);
+        }
+
+        userRepository.save(user);
         return oauthUser;
     }
 }

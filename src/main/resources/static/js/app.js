@@ -49,6 +49,13 @@
         info.classList.remove('hidden');
         document.getElementById('user-avatar').src = data.avatar || '';
         document.getElementById('user-name').textContent = data.name || data.email;
+        if (data.admin) {
+          const adminLink = document.createElement('a');
+          adminLink.href = '/admin';
+          adminLink.className = 'admin-link';
+          adminLink.textContent = 'Admin';
+          info.insertBefore(adminLink, document.getElementById('logout-btn'));
+        }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         loadActivities();
       }
@@ -707,6 +714,8 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
+  document.getElementById('start-time').value = new Date().toTimeString().slice(0, 5);
+
   HikerMap.init();
   checkAuth();
 
