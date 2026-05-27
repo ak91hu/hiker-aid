@@ -4,6 +4,7 @@ import com.hikerAid.entity.ActivityEntity;
 import com.hikerAid.entity.UserEntity;
 import com.hikerAid.repository.ActivityRepository;
 import com.hikerAid.repository.UserRepository;
+import com.hikerAid.service.EmailService;
 import com.hikerAid.service.GeminiService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ public class AdminController {
     private final UserRepository userRepo;
     private final ActivityRepository activityRepo;
     private final GeminiService geminiService;
+    private final EmailService emailService;
 
     @Value("${hikerAid.gemini-api-key:}")
     private String geminiKey;
@@ -28,10 +30,12 @@ public class AdminController {
     @Value("${hikerAid.admin-email:}")
     private String adminEmail;
 
-    public AdminController(UserRepository userRepo, ActivityRepository activityRepo, GeminiService geminiService) {
+    public AdminController(UserRepository userRepo, ActivityRepository activityRepo,
+                           GeminiService geminiService, EmailService emailService) {
         this.userRepo = userRepo;
         this.activityRepo = activityRepo;
         this.geminiService = geminiService;
+        this.emailService = emailService;
     }
 
     @GetMapping("/admin")
@@ -164,13 +168,62 @@ public class AdminController {
     public ResponseEntity<?> envStatus(@AuthenticationPrincipal OAuth2User principal) {
         if (!isAdmin(principal)) return ResponseEntity.status(403).build();
 
-        return ResponseEntity.ok(Map.of(
-            "GOOGLE_CLIENT_ID", !System.getenv().getOrDefault("GOOGLE_CLIENT_ID", "").isBlank(),
-            "GOOGLE_CLIENT_SECRET", !System.getenv().getOrDefault("GOOGLE_CLIENT_SECRET", "").isBlank(),
-            "GEMINI_API_KEY", geminiKey != null && !geminiKey.isBlank(),
-            "ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank(),
-            "adminEmailValue", adminEmail != null ? adminEmail : "(not set)"
-        ));
+        Map<String, Object> env = new HashMap<>();
+        env.put("GOOGLE_CLIENT_ID", !System.getenv().getOrDefault("GOOGLE_CLIENT_ID", "").isBlank());
+        env.put("GOOGLE_CLIENT_SECRET", !System.getenv().getOrDefault("GOOGLE_CLIENT_SECRET", "").isBlank());
+        env.put("GEMINI_API_KEY", geminiKey != null && !geminiKey.isBlank());
+        env.put("ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank());
+        env.put("adminEmailValue", adminEmail != null ? adminEmail : "(not set)");
+        env.put("MAIL_USERNAME", emailService.isConfigured());
+        env.put("TESTMAIL_API_KEY", emailService.isTestmailConfigured());
+        return ResponseEntity.ok(env);
+    }
+
+    @PostMapping("/api/admin/test-email")
+    @ResponseBody
+    public ResponseEntity<?> testEmail(@AuthenticationPrincipal OAuth2User principal) {
+        if (!isAdmin(principal)) return ResponseEntity.status(403).build();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("smtpConfigured", emailService.isConfigured());
+        result.put("testmailConfigured", emailService.isTestmailConfigured());
+
+        if (!emailService.isConfigured()) {
+            result.put("success", false);
+            result.put("error", "SMTP not configured — set MAIL_USERNAME and MAIL_PASSWORD");
+            return ResponseEntity.ok(result);
+        }
+        if (!emailService.isTestmailConfigured()) {
+            result.put("success", false);
+            result.put("error", "Testmail.app not configured — set TESTMAIL_NAMESPACE");
+            return ResponseEntity.ok(result);
+        }
+
+        String tag = "hikeraid-test-" + System.currentTimeMillis();
+        long start = System.currentTimeMillis();
+        try {
+            emailService.sendTestEmail(tag,
+                    "HikerAid Email Test",
+                    "This is a test email from HikerAid admin panel.\nTimestamp: " + java.time.Instant.now());
+            long latency = System.currentTimeMillis() - start;
+            result.put("success", true);
+            result.put("tag", tag);
+            result.put("latencyMs", latency);
+            result.put("sentTo", tag + "." + emailService.getTestmailNamespace() + "@inbox.testmail.app");
+            result.put("message", "Email sent — check inbox below");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/api/admin/test-email/inbox")
+    @ResponseBody
+    public ResponseEntity<?> testEmailInbox(@AuthenticationPrincipal OAuth2User principal,
+                                            @RequestParam(required = false) String tag) {
+        if (!isAdmin(principal)) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(emailService.fetchTestmailInbox(tag));
     }
 
     private boolean isAdmin(OAuth2User principal) {
