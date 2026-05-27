@@ -78,12 +78,15 @@ public class GeminiService {
         int month = java.time.LocalDate.now().getMonthValue();
         String season = month >= 3 && month <= 5 ? "spring" : month >= 6 && month <= 8 ? "summer" : month >= 9 && month <= 11 ? "autumn" : "winter";
 
-        String prompt = "Give one short, specific hiking safety or performance tip for " + season +
-            ". Max 2 sentences. Be practical and actionable. No generic advice. Start directly with the tip, no intro.";
+        String prompt = "You are a mountain safety expert. Give one specific, actionable hiking tip for " + season +
+            " conditions. Include WHY it matters and WHAT to do. Example quality: " +
+            "'In spring, stream crossings can be dangerously swollen from snowmelt. " +
+            "Carry trekking poles for stability and cross at the widest, shallowest point early in the morning before afternoon melt peaks.' " +
+            "Write exactly 2-3 complete sentences. No markdown formatting, no bullet points, no bold text. Plain text only.";
 
         Map<String, Object> request = Map.of(
             "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-            "generationConfig", Map.of("temperature", 0.9, "maxOutputTokens", 100)
+            "generationConfig", Map.of("temperature", 0.8, "maxOutputTokens", 300)
         );
 
         try {
@@ -96,7 +99,8 @@ public class GeminiService {
                 JsonNode root = objectMapper.readTree(response.getBody());
                 JsonNode candidates = root.path("candidates");
                 if (candidates.isArray() && !candidates.isEmpty()) {
-                    return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+                    String text = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+                    return text.replaceAll("\\*+", "").replaceAll("#+ ", "").trim();
                 }
             }
         } catch (Exception e) { /* unavailable */ }

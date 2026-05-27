@@ -382,7 +382,24 @@
       return;
     }
     hideError();
+    if (!validateBodyInputs()) return;
     uploadFile(file);
+  }
+
+  function validateBodyInputs() {
+    const w = parseFloat(weightInput.value);
+    const h = parseFloat(document.getElementById('height-input').value);
+    if (isNaN(w) || w < 30 || w > 250) {
+      showError('Weight must be between 30 and 250 kg');
+      weightInput.focus();
+      return false;
+    }
+    if (isNaN(h) || h < 120 || h > 220) {
+      showError('Height must be between 120 and 220 cm');
+      document.getElementById('height-input').focus();
+      return false;
+    }
+    return true;
   }
 
   async function uploadFile(file) {
