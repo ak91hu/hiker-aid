@@ -1,11 +1,9 @@
 package com.hikerAid.service;
 
-import jakarta.mail.*;
-import jakarta.mail.internet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
@@ -19,95 +17,134 @@ import java.util.*;
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
+    private static final String RESEND_API = "https://api.resend.com/emails";
     private static final String TESTMAIL_API = "https://api.testmail.app/api/json";
-    private static final String MX_HOST = "mx.testmail.app";
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Value("${hikerAid.resend-api-key:}")
+    private String resendApiKey;
+
+    @Value("${hikerAid.resend-from:HikerAid <onboarding@resend.dev>}")
+    private String resendFrom;
+
     @Value("${hikerAid.testmail-api-key:}")
-    private String apiKey;
+    private String testmailApiKey;
 
     @Value("${hikerAid.testmail-namespace:}")
-    private String namespace;
+    private String testmailNamespace;
 
     public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank()
-            && namespace != null && !namespace.isBlank();
+        return resendApiKey != null && !resendApiKey.isBlank();
     }
 
-    public String getNamespace() {
-        return namespace;
+    public boolean isTestmailConfigured() {
+        return testmailApiKey != null && !testmailApiKey.isBlank()
+            && testmailNamespace != null && !testmailNamespace.isBlank();
     }
+
+    public String getTestmailNamespace() {
+        return testmailNamespace;
+    }
+
+    // ── Sending via Resend ──────────────────────────────────────────────
 
     public void sendFriendInvite(String toEmail, String inviterName) throws Exception {
-        String tag = "invite-" + sanitizeTag(toEmail);
-        String subject = "HikerAid — " + inviterName + " wants to be your hiking buddy!";
-        String body = inviterName + " invited you to join HikerAid as a hiking friend.\n\n"
-                + "Sign up with Google at HikerAid and the friendship will be created automatically.\n\n"
-                + "Stay safe on the trails!\n\n"
-                + "(Original recipient: " + toEmail + ")";
-        sendToTestmail(tag, subject, body);
+        String subject = inviterName + " wants you on their hiking team!";
+        String body = "Hey there,\n\n"
+                + inviterName + " uses HikerAid to plan safer hikes and wants you as a trail buddy.\n\n"
+                + "What is HikerAid?\n"
+                + "A free app that analyzes hiking routes — turnaround times, daylight margins,\n"
+                + "difficulty scoring, and real-time GPS tracking. When friends are connected,\n"
+                + "the app can send your GPS coordinates in an emergency.\n\n"
+                + "How to connect:\n"
+                + "1. Go to HikerAid and sign in with Google\n"
+                + "2. The friendship with " + inviterName + " will be created automatically\n"
+                + "3. You'll appear in each other's emergency contact list\n\n"
+                + "No cost, no installation — it runs in your browser and works offline.\n\n"
+                + "Stay safe on the trails,\n"
+                + "The HikerAid Team";
+        sendViaResend(toEmail, subject, body);
     }
 
     public void sendEmergencyAlert(String toEmail, String hikerName, double latitude, double longitude) throws Exception {
         String mapsUrl = "https://www.google.com/maps?q=" + latitude + "," + longitude;
-        String tag = "emergency-" + System.currentTimeMillis();
-        String subject = "EMERGENCY — " + hikerName + " needs help!";
-        String body = "EMERGENCY ALERT from HikerAid\n\n"
-                + hikerName + " has triggered an emergency alert and may need immediate help.\n\n"
-                + "Current coordinates:\n"
-                + "  Latitude:  " + latitude + "\n"
-                + "  Longitude: " + longitude + "\n\n"
-                + "Google Maps: " + mapsUrl + "\n\n"
-                + "Please try to contact them or alert local emergency services.\n"
-                + "If you believe this is a real emergency, call your local emergency number (112 / 911 / 999).\n\n"
-                + "(Original recipient: " + toEmail + ")";
-        sendToTestmail(tag, subject, body);
+        String subject = "EMERGENCY — " + hikerName + " needs help on the trail!";
+        String body = "--- EMERGENCY ALERT ---\n\n"
+                + hikerName + " has triggered an emergency alert from HikerAid.\n"
+                + "They may be injured, lost, or in danger and need immediate help.\n\n"
+                + "LOCATION\n"
+                + "  Latitude:  " + String.format("%.6f", latitude) + "\n"
+                + "  Longitude: " + String.format("%.6f", longitude) + "\n\n"
+                + "  Open in Google Maps:\n"
+                + "  " + mapsUrl + "\n\n"
+                + "WHAT TO DO\n"
+                + "  1. Try calling " + hikerName + " directly\n"
+                + "  2. If no answer, call local emergency services:\n"
+                + "     Europe: 112  |  US/Canada: 911  |  UK: 999\n"
+                + "  3. Share the coordinates above with rescuers\n\n"
+                + "This alert was sent automatically by HikerAid.\n"
+                + "If you believe this was sent in error, please still verify.";
+        sendViaResend(toEmail, subject, body);
     }
 
-    public void sendTestEmail() throws Exception {
-        String tag = "admin-test-" + System.currentTimeMillis();
-        sendToTestmail(tag, "HikerAid Email Test",
-                "Test email from the HikerAid admin panel.\nTimestamp: " + java.time.Instant.now());
+    public void sendTestEmail(String toEmail) throws Exception {
+        String subject = "HikerAid — Email System Test";
+        String body = "This is a test email from the HikerAid admin panel.\n\n"
+                + "If you're reading this, the email system is working correctly.\n\n"
+                + "Sent at: " + java.time.Instant.now() + "\n"
+                + "Provider: Resend.com";
+        sendViaResend(toEmail, subject, body);
     }
 
-    private void sendToTestmail(String tag, String subject, String body) throws Exception {
+    private void sendViaResend(String to, String subject, String body) throws Exception {
         if (!isConfigured()) {
-            throw new IllegalStateException("Testmail.app not configured — set TESTMAIL_NAMESPACE env var");
+            throw new IllegalStateException("Resend not configured — set RESEND_API_KEY env var");
         }
 
-        String toAddress = tag + "." + namespace + "@inbox.testmail.app";
-        log.info("Delivering email to testmail.app: to={}, subject={}", toAddress, subject);
+        log.info("Sending email via Resend: to={}, subject={}", to, subject);
 
-        Properties props = new Properties();
-        props.put("mail.smtp.host", MX_HOST);
-        props.put("mail.smtp.port", "25");
-        props.put("mail.smtp.auth", "false");
-        props.put("mail.smtp.starttls.enable", "false");
-        props.put("mail.smtp.connectiontimeout", "10000");
-        props.put("mail.smtp.timeout", "10000");
-        props.put("mail.smtp.writetimeout", "10000");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + resendApiKey);
 
-        Session session = Session.getInstance(props);
-        MimeMessage msg = new MimeMessage(session);
-        msg.setFrom(new InternetAddress("hikeraid@hikeraid.app", "HikerAid"));
-        msg.setRecipient(Message.RecipientType.TO, new InternetAddress(toAddress));
-        msg.setSubject(subject, "UTF-8");
-        msg.setText(body, "UTF-8");
-        msg.setSentDate(new java.util.Date());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("from", resendFrom);
+        payload.put("to", List.of(to));
+        payload.put("subject", subject);
+        payload.put("text", body);
 
-        Transport.send(msg);
-        log.info("Email delivered to {}", toAddress);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(RESEND_API, entity, String.class);
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Email sent successfully to {}", to);
+            } else {
+                throw new RuntimeException("Resend API returned " + response.getStatusCode());
+            }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            String errBody = e.getResponseBodyAsString();
+            log.error("Resend API error {}: {}", e.getStatusCode(), errBody);
+            try {
+                JsonNode err = objectMapper.readTree(errBody);
+                throw new RuntimeException("Resend: " + err.path("message").asText(errBody));
+            } catch (RuntimeException re) { throw re; }
+            catch (Exception ignored) {}
+            throw new RuntimeException("Resend API error: " + e.getStatusCode());
+        }
     }
 
-    public Map<String, Object> fetchInbox(String tag) {
-        if (!isConfigured()) {
-            return Map.of("error", "Testmail.app not configured — set TESTMAIL_NAMESPACE env var");
+    // ── Testmail.app inbox reader ───────────────────────────────────────
+
+    public Map<String, Object> fetchTestmailInbox(String tag) {
+        if (!isTestmailConfigured()) {
+            return Map.of("error", "Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
         }
         try {
-            String url = TESTMAIL_API + "?apikey=" + enc(apiKey)
-                    + "&namespace=" + enc(namespace)
+            String url = TESTMAIL_API + "?apikey=" + enc(testmailApiKey)
+                    + "&namespace=" + enc(testmailNamespace)
                     + "&pretty=true&livequery=false";
             if (tag != null && !tag.isBlank()) {
                 url += "&tag=" + enc(tag);
@@ -145,7 +182,7 @@ public class EmailService {
             resp.put("success", true);
             resp.put("count", count);
             resp.put("emails", emails);
-            resp.put("namespace", namespace);
+            resp.put("namespace", testmailNamespace);
             return resp;
         } catch (Exception e) {
             log.error("Testmail inbox fetch error: {}", e.getMessage());
@@ -155,9 +192,5 @@ public class EmailService {
 
     private String enc(String v) {
         return URLEncoder.encode(v, StandardCharsets.UTF_8);
-    }
-
-    private String sanitizeTag(String input) {
-        return input.replaceAll("[^a-zA-Z0-9-]", "-").toLowerCase();
     }
 }

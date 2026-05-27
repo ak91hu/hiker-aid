@@ -174,13 +174,15 @@ public class AdminController {
         env.put("GEMINI_API_KEY", geminiKey != null && !geminiKey.isBlank());
         env.put("ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank());
         env.put("adminEmailValue", adminEmail != null ? adminEmail : "(not set)");
-        env.put("TESTMAIL_API_KEY", emailService.isConfigured());
+        env.put("RESEND_API_KEY", emailService.isConfigured());
+        env.put("TESTMAIL_INBOX", emailService.isTestmailConfigured());
         return ResponseEntity.ok(env);
     }
 
     @PostMapping("/api/admin/test-email")
     @ResponseBody
-    public ResponseEntity<?> testEmail(@AuthenticationPrincipal OAuth2User principal) {
+    public ResponseEntity<?> testEmail(@AuthenticationPrincipal OAuth2User principal,
+                                       @RequestBody(required = false) Map<String, String> body) {
         if (!isAdmin(principal)) return ResponseEntity.status(403).build();
 
         Map<String, Object> result = new HashMap<>();
@@ -188,18 +190,24 @@ public class AdminController {
 
         if (!emailService.isConfigured()) {
             result.put("success", false);
-            result.put("error", "Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
+            result.put("error", "Resend not configured — set RESEND_API_KEY env var");
             return ResponseEntity.ok(result);
+        }
+
+        String toEmail = body != null ? body.getOrDefault("email", "") : "";
+        if (toEmail.isBlank()) {
+            String googleEmail = principal.getAttribute("email");
+            toEmail = googleEmail != null ? googleEmail : "test@example.com";
         }
 
         long start = System.currentTimeMillis();
         try {
-            emailService.sendTestEmail();
+            emailService.sendTestEmail(toEmail);
             long latency = System.currentTimeMillis() - start;
             result.put("success", true);
             result.put("latencyMs", latency);
-            result.put("namespace", emailService.getNamespace());
-            result.put("message", "Email sent to testmail.app — check inbox below");
+            result.put("sentTo", toEmail);
+            result.put("message", "Test email sent to " + toEmail);
         } catch (Exception e) {
             result.put("success", false);
             result.put("error", e.getMessage());
@@ -212,7 +220,7 @@ public class AdminController {
     public ResponseEntity<?> testEmailInbox(@AuthenticationPrincipal OAuth2User principal,
                                             @RequestParam(required = false) String tag) {
         if (!isAdmin(principal)) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(emailService.fetchInbox(tag));
+        return ResponseEntity.ok(emailService.fetchTestmailInbox(tag));
     }
 
     private boolean isAdmin(OAuth2User principal) {

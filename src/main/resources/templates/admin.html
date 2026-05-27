@@ -162,12 +162,15 @@
 
         <div class="tab-content" id="tab-email">
             <div class="section">
-                <div class="section-header"><span class="section-icon">&#9993;</span><h2>Email Tester (testmail.app)</h2></div>
+                <div class="section-header"><span class="section-icon">&#9993;</span><h2>Email Tester (Resend + testmail.app)</h2></div>
                 <div class="ai-test-box" style="border-color:rgba(116,198,157,0.2);background:linear-gradient(145deg,var(--surface) 0%,rgba(116,198,157,0.05) 100%)">
-                    <p class="ai-test-desc">Sends a test email via SMTP to a testmail.app inbox, then queries the testmail.app API to verify delivery. Tests the full email pipeline end-to-end.</p>
+                    <p class="ai-test-desc">Sends a test email via Resend.com API. Enter a recipient or leave blank to send to your admin email. Use testmail.app inbox to verify delivery to test addresses.</p>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+                        <input type="email" id="test-email-to" placeholder="Recipient email (blank = your email)" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.82rem;padding:10px 14px;font-family:inherit">
+                    </div>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                         <button class="ai-test-btn" id="btn-test-email" style="background:linear-gradient(135deg,var(--primary-lt),var(--accent))">&#9993; Send Test Email</button>
-                        <button class="ai-test-btn" id="btn-check-inbox" style="background:linear-gradient(135deg,var(--info),#48cae4)">&#128229; Check Inbox</button>
+                        <button class="ai-test-btn" id="btn-check-inbox" style="background:linear-gradient(135deg,var(--info),#48cae4)">&#128229; Check testmail.app Inbox</button>
                     </div>
                     <div id="email-test-result" style="display:none">
                         <div class="ai-result" id="email-test-response"></div>
@@ -211,7 +214,7 @@
     if(statsRes.ok){const s=await statsRes.json();setText('s-users',s.totalUsers);setText('s-activities',s.totalActivities);setText('s-memory',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime',s.uptime);setText('s-java',s.javaVersion);setText('s-java2',s.javaVersion);setText('s-memory2',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime2',s.uptime);setText('s-users2',s.totalUsers);setText('s-activities2',s.totalActivities);}
 
     if(envRes.ok){const env=await envRes.json();const grid=document.getElementById('env-grid');grid.innerHTML='';
-        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','TESTMAIL_API_KEY']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
+        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','RESEND_API_KEY','TESTMAIL_INBOX']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
         if(env.adminEmailValue)document.getElementById('admin-email-note').textContent='Admin email: '+env.adminEmailValue;
     }
 
@@ -254,12 +257,13 @@
 
     document.getElementById('btn-test-email').addEventListener('click',async()=>{
         const btn=document.getElementById('btn-test-email');const resultDiv=document.getElementById('email-test-result');
+        const toEmail=document.getElementById('test-email-to').value.trim();
         btn.disabled=true;btn.textContent='Sending...';resultDiv.style.display='block';
-        document.getElementById('email-test-response').textContent='Sending test email via SMTP...';
+        document.getElementById('email-test-response').textContent='Sending test email via Resend...';
         document.getElementById('email-test-latency').textContent='';document.getElementById('email-test-status').textContent='';
-        try{const res=await fetch('/api/admin/test-email',{method:'POST'});const data=await res.json();
+        try{const res=await fetch('/api/admin/test-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:toEmail})});const data=await res.json();
             if(data.success){
-                document.getElementById('email-test-response').textContent='Sent to: '+data.sentTo+'\nTag: '+data.tag+'\n\n'+data.message;
+                document.getElementById('email-test-response').textContent='Sent to: '+data.sentTo+'\n\n'+data.message;
                 document.getElementById('email-test-latency').textContent=data.latencyMs?'\u23F1 '+data.latencyMs+'ms':'';
                 document.getElementById('email-test-status').textContent='\u2713 Sent';document.getElementById('email-test-status').className='status-ok';
             }else{

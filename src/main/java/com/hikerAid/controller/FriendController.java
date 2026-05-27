@@ -124,7 +124,7 @@ public class FriendController {
             }
             if (!emailService.isConfigured()) {
                 return ResponseEntity.status(503).body(Map.of("error",
-                        "Email is not configured. Ask the admin to set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE."));
+                        "Email is not configured. Ask the admin to set RESEND_API_KEY."));
             }
             FriendInviteEntity invite = new FriendInviteEntity(user, email);
             friendInviteRepository.save(invite);
@@ -192,7 +192,7 @@ public class FriendController {
 
         if (!emailService.isConfigured()) {
             return ResponseEntity.status(503).body(Map.of("error",
-                    "Email is not configured. Emergency alerts require TESTMAIL_API_KEY and TESTMAIL_NAMESPACE."));
+                    "Email is not configured. Emergency alerts require RESEND_API_KEY."));
         }
 
         List<FriendshipEntity> accepted = friendshipRepository.findAllByUserAndStatus(user.getId(), Status.ACCEPTED);
