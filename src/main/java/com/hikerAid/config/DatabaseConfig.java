@@ -21,12 +21,14 @@ public class DatabaseConfig {
         String userInfo = uri.getUserInfo();
         String username = userInfo.split(":")[0];
         String password = userInfo.split(":")[1];
-        String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + uri.getPath();
+        int port = uri.getPort() > 0 ? uri.getPort() : 5432;
+        String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + port + uri.getPath();
 
         HikariDataSource ds = new HikariDataSource();
         ds.setJdbcUrl(jdbcUrl);
         ds.setUsername(username);
         ds.setPassword(password);
+        ds.setDriverClassName("org.postgresql.Driver");
         return ds;
     }
 }
