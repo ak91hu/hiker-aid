@@ -167,9 +167,7 @@
         document.getElementById('user-name').textContent = data.name || data.email;
         document.getElementById('user-email').textContent = data.email || '';
         if (data.admin) {
-          const badge = document.getElementById('admin-badge');
-          badge.classList.remove('hidden');
-          badge.addEventListener('click', () => { window.location.href = '/admin'; });
+          document.getElementById('admin-badge').classList.remove('hidden');
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         document.getElementById('user-content').classList.remove('hidden');
@@ -449,6 +447,14 @@
           const emailSpan = document.createElement('span');
           emailSpan.textContent = inv.email;
           card.appendChild(emailSpan);
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'friend-remove-btn';
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.addEventListener('click', async () => {
+            await fetch(`/api/friends/invite/${inv.id}`, { method: 'DELETE' });
+            loadFriends();
+          });
+          card.appendChild(cancelBtn);
           invitesList.appendChild(card);
         }
       } else {
@@ -505,10 +511,13 @@
 
   function updateEmergencyButton() {
     const btn = document.getElementById('btn-emergency');
+    const friendsBtn = document.getElementById('btn-emergency-friends');
     if (hasFriends && currentUser) {
       btn.classList.remove('hidden');
+      friendsBtn.classList.remove('hidden');
     } else {
       btn.classList.add('hidden');
+      friendsBtn.classList.add('hidden');
     }
   }
 
@@ -569,6 +578,7 @@
     if (e.key === 'Enter') addFriend();
   });
   document.getElementById('btn-emergency').addEventListener('click', sendEmergency);
+  document.getElementById('btn-emergency-friends').addEventListener('click', sendEmergency);
 
   // ── User content tabs ─────────────────────────────────────────────────
   document.querySelectorAll('.uc-tab').forEach(tab => {

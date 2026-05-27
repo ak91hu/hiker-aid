@@ -180,6 +180,23 @@ public class FriendController {
         return ResponseEntity.ok(Map.of("message", "Friend removed"));
     }
 
+    @DeleteMapping("/invite/{id}")
+    public ResponseEntity<?> cancelInvite(@AuthenticationPrincipal OAuth2User principal,
+                                          @PathVariable Long id) {
+        UserEntity user = resolveUser(principal);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        FriendInviteEntity invite = friendInviteRepository.findById(id).orElse(null);
+        if (invite == null) return ResponseEntity.notFound().build();
+
+        if (!invite.getInviter().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        friendInviteRepository.delete(invite);
+        return ResponseEntity.ok(Map.of("message", "Invite cancelled"));
+    }
+
     @PostMapping("/emergency")
     public ResponseEntity<?> sendEmergency(@AuthenticationPrincipal OAuth2User principal,
                                            @RequestBody Map<String, Object> body) {
