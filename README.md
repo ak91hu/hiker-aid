@@ -115,10 +115,12 @@ Health check: `curl http://localhost:8080/api/health`
 
 1. Click the button above, sign in with GitHub
 2. Render prompts for `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — paste your values
-3. Click **Apply** — Render builds the Docker image and starts the service
+3. Click **Apply** — Render builds the Docker image, creates a PostgreSQL database, and starts the service
 4. Once live, add `https://<your-app>.onrender.com/login/oauth2/code/google` as an authorized redirect URI in your [Google Cloud OAuth credentials](https://console.cloud.google.com/apis/credentials)
 
-After initial setup, every push to `main` auto-deploys via Render's GitHub integration. The GitHub Actions CI pipeline also verifies every push and PR.
+The `render.yaml` blueprint auto-provisions a PostgreSQL database and injects `DATABASE_URL` into the web service. User data persists across deployments. Every push to `main` auto-deploys via Render's GitHub integration. The GitHub Actions CI pipeline also verifies every push and PR.
+
+> **Note:** Render free-tier PostgreSQL requires renewal every 90 days (you'll get an email reminder).
 
 ---
 
@@ -236,6 +238,7 @@ Returns `{"status":"ok","app":"HikerAid","version":"1.0.0"}`.
 src/main/java/com/hikerAid/
   config/
     SecurityConfig.java              Spring Security + OAuth2, endpoint permissions
+    DatabaseConfig.java              Converts Render's postgres:// URL to JDBC format
   controller/
     GpxApiController.java            POST /api/analyze + GET /api/health
     ActivityController.java          CRUD /api/activities
@@ -255,7 +258,7 @@ src/main/java/com/hikerAid/
     RouteStats.java                  Route statistics record
     SafetyAnalysis.java              Safety analysis record
     GpxData.java                     Parsed GPX structure
-    TrackPoint.java                  GPS point (lat/lon/ele/time/hr/cad)
+    TrackPoint.java                  GPS point (lat/lon/ele/time/cad)
     ElevationPoint.java              Elevation profile point
     WaypointData.java                GPX waypoint
   repository/
@@ -271,7 +274,7 @@ src/main/java/com/hikerAid/
     EmailService.java                Resend.com API for friend invites + emergency alerts
 
 src/main/resources/
-  application.properties             Server, H2 DB, OAuth, Gemini config
+  application.properties             Server, PostgreSQL, OAuth, Gemini config
   templates/
     index.html                       Main SPA (upload, viewer, recording)
     admin.html                       Admin panel (tabbed dashboard)
@@ -354,7 +357,7 @@ Accuracy: ~10-15 minutes. The 30-minute safety buffer compensates for this uncer
 | Friend ownership | Friendship endpoints verify user is a participant |
 | Emergency rate limit | Requires accepted friends; coordinate validation; GPS accuracy reported |
 | Error handling | Generic messages; no stack traces leaked to client |
-| H2 console | Disabled |
+| Database | PostgreSQL on Render (persistent); H2 for local dev/tests |
 | Gemini API key | Server-side only; never sent to browser |
 
 ---
@@ -396,12 +399,12 @@ These thresholds are defined in both `map.js` and `elevation.js` and must be kep
 | `server.port` | 8080 | HTTP port |
 | `spring.servlet.multipart.max-file-size` | 15MB | Max upload size |
 | `server.compression.enabled` | true | Gzip for HTML/CSS/JS/JSON |
-| `spring.datasource.url` | `jdbc:h2:file:./data/hikeraid` | Database file location |
-| `spring.jpa.hibernate.ddl-auto` | update | Auto-create/update tables |
-| `hikerAid.gemini-api-key` | `${GEMINI_API_KEY}` | Gemini API key for AI features |
+| `DATABASE_URL` | (env var) | PostgreSQL connection URL (Render auto-injects) |
+| `spring.jpa.hibernate.ddl-auto` | update | Auto-create/update tables (never drops) |
+| `hikerAid.gemini-api-key` | `${GEMINI_API_KEY}` | Gemini API key for AI features (optional) |
 | `hikerAid.admin-email` | `${ADMIN_EMAIL}` | Email for admin access |
 | `hikerAid.resend-api-key` | `${RESEND_API_KEY}` | Resend.com API key for email |
-| `hikerAid.resend-from` | `HikerAid <onboarding@resend.dev>` | Email sender address |
+| `hikerAid.resend-from` | `HikerAid <noreply@myappmail.online>` | Email sender address |
 
 ---
 
