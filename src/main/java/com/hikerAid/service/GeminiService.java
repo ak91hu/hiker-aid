@@ -16,7 +16,8 @@ import java.util.Map;
 public class GeminiService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
-    private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    private static final String GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
+    private static final String[] MODELS = {"gemini-2.5-flash", "gemini-2.0-flash"};
 
     @Value("${hikerAid.gemini-api-key:}")
     private String apiKey;
@@ -44,37 +45,8 @@ public class GeminiService {
         );
 
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
-            String url = GEMINI_URL + "?key=" + apiKey;
-
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                JsonNode root = objectMapper.readTree(response.getBody());
-                JsonNode error = root.path("error");
-                if (!error.isMissingNode()) {
-                    return "Gemini error: " + error.path("message").asText();
-                }
-                JsonNode candidates = root.path("candidates");
-                if (candidates.isArray() && !candidates.isEmpty()) {
-                    JsonNode parts = candidates.get(0).path("content").path("parts");
-                    if (parts.isArray()) {
-                        for (int i = parts.size() - 1; i >= 0; i--) {
-                            String text = parts.get(i).path("text").asText("");
-                            if (!text.isBlank()) return text;
-                        }
-                    }
-                }
-            }
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            try {
-                JsonNode err = objectMapper.readTree(e.getResponseBodyAsString());
-                return "Gemini API error: " + err.path("error").path("message").asText();
-            } catch (Exception ignored) {}
-            return "Gemini API error: " + e.getStatusCode();
+            String response = callGemini(request);
+            if (response != null) return response;
         } catch (Exception e) {
             return "AI analysis temporarily unavailable: " + e.getMessage();
         }
@@ -99,25 +71,9 @@ public class GeminiService {
         );
 
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(GEMINI_URL + "?key=" + apiKey, entity, String.class);
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                JsonNode root = objectMapper.readTree(response.getBody());
-                JsonNode candidates = root.path("candidates");
-                if (candidates.isArray() && !candidates.isEmpty()) {
-                    JsonNode parts = candidates.get(0).path("content").path("parts");
-                    if (parts.isArray()) {
-                        for (int i = 0; i < parts.size(); i++) {
-                            String text = parts.get(i).path("text").asText("");
-                            if (!text.isBlank()) {
-                                return text.replaceAll("\\*+", "").replaceAll("#+ ", "").trim();
-                            }
-                        }
-                    }
-                }
+            String response = callGemini(request);
+            if (response != null) {
+                return response.replaceAll("\\*+", "").replaceAll("#+ ", "").trim();
             }
         } catch (Exception e) {
             log.warn("Hiking tip unavailable: {}", e.getMessage());
@@ -126,7 +82,67 @@ public class GeminiService {
     }
 
     public String getModelName() {
-        return GEMINI_URL.substring(GEMINI_URL.lastIndexOf("/") + 1, GEMINI_URL.indexOf(":"));
+        return MODELS[0];
+    }
+
+    private String callGemini(Map<String, Object> request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        for (String model : MODELS) {
+            String url = GEMINI_BASE + model + ":generateContent?key=" + apiKey;
+            try {
+                log.info("Calling Gemini model: {}", model);
+                ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    JsonNode root = objectMapper.readTree(response.getBody());
+
+                    JsonNode error = root.path("error");
+                    if (!error.isMissingNode()) {
+                        log.warn("Gemini {} error: {}", model, error.path("message").asText());
+                        continue;
+                    }
+
+                    JsonNode candidates = root.path("candidates");
+                    if (candidates.isArray() && !candidates.isEmpty()) {
+                        String text = extractText(candidates.get(0));
+                        if (text != null) {
+                            log.info("Got response from {}", model);
+                            return text;
+                        }
+                    }
+                }
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                log.warn("Gemini {} client error {}: {}", model, e.getStatusCode(), e.getResponseBodyAsString());
+                try {
+                    JsonNode err = objectMapper.readTree(e.getResponseBodyAsString());
+                    String msg = err.path("error").path("message").asText("");
+                    if (msg.contains("API key")) throw new RuntimeException("Gemini API key error: " + msg);
+                } catch (RuntimeException re) { throw re; }
+                catch (Exception ignored) {}
+            } catch (org.springframework.web.client.HttpServerErrorException e) {
+                log.warn("Gemini {} returned {} - trying next model", model, e.getStatusCode());
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                log.warn("Gemini {} connection error: {} - trying next model", model, e.getMessage());
+            }
+        }
+        log.error("All Gemini models failed");
+        return null;
+    }
+
+    private String extractText(JsonNode candidate) {
+        JsonNode parts = candidate.path("content").path("parts");
+        if (!parts.isArray() || parts.isEmpty()) return null;
+
+        for (int i = parts.size() - 1; i >= 0; i--) {
+            JsonNode part = parts.get(i);
+            if (part.has("thought") && part.path("thought").asBoolean()) continue;
+            String text = part.path("text").asText("");
+            if (!text.isBlank()) return text;
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")

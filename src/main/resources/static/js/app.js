@@ -1003,12 +1003,15 @@
     try {
       const res = await fetch('/api/ai-tip');
       const data = await res.json();
+      const card = document.getElementById('ai-tip-card');
       if (data.available && data.tip) {
-        const card = document.getElementById('ai-tip-card');
         document.getElementById('ai-tip-text').textContent = data.tip;
         card.classList.remove('hidden');
+      } else if (data.available === false) {
+        document.getElementById('ai-tip-text').textContent = 'AI tips require a Gemini API key. Set GEMINI_API_KEY to enable.';
+        card.classList.remove('hidden');
       }
-    } catch (e) { /* offline or unavailable */ }
+    } catch (e) { /* offline */ }
   }
 
   // ── AI Analysis ────────────────────────────────────────────────────────
