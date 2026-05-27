@@ -6,7 +6,7 @@ Spring Boot 4.0.6 (Spring Framework 7, Jackson 3, Jakarta EE 11) mobile-first PW
 
 **Live**: https://hikeraid.onrender.com
 
-**Stack**: Java 21, H2 embedded database (file-based), Google OAuth2, Gemini AI (2.5-flash with 2.0-flash fallback), Resend.com email API, testmail.app inbox verification, Leaflet 1.9.4, Chart.js 4.5.1, vanilla JS frontend.
+**Stack**: Java 21, H2 embedded database (file-based), Google OAuth2, Gemini AI (2.5-flash with 2.0-flash fallback), Resend.com email API, Leaflet 1.9.4, Chart.js 4.5.1, vanilla JS frontend.
 
 **Architecture**: Single Thymeleaf page (`index.html`) + admin page (`admin.html`). Three CSS-toggled screens: `upload-screen`, `loading-screen`, `viewer-screen`. No JS framework - vanilla ES6 IIFEs. `app.js` orchestrates `map.js` and `elevation.js`.
 
@@ -18,9 +18,9 @@ java -jar target/hikerAid-1.0.0.jar
 ```
 
 Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `RESEND_API_KEY`, `RESEND_FROM`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`.
+Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `RESEND_API_KEY`, `RESEND_FROM`.
 
-Note: `RESEND_API_KEY` and `TESTMAIL_API_KEY` have hardcoded defaults in `application.properties`. No env var needed unless rotating keys.
+Note: `RESEND_API_KEY` has a hardcoded default in `application.properties`. No env var needed unless rotating keys.
 
 Health check: `curl http://localhost:8080/api/health`
 
@@ -33,7 +33,7 @@ Health check: `curl http://localhost:8080/api/health`
 | `service/RouteAnalysisService.java` | All maths: Tobler time, safety analysis, difficulty, calories, gradient smoothing |
 | `service/GeminiService.java` | Gemini AI client with model fallback chain (2.5-flash -> 2.0-flash), thinking model response parsing |
 | `service/CustomOAuth2UserService.java` | Google login -> user creation/update, admin flag, auto-convert pending friend invites |
-| `service/EmailService.java` | Resend.com HTTP API for sending + testmail.app API for inbox reading |
+| `service/EmailService.java` | Resend.com HTTP API for sending emails |
 | `controller/GpxApiController.java` | `POST /api/analyze` - main analysis endpoint |
 | `controller/ActivityController.java` | CRUD `/api/activities` - user activity persistence |
 | `controller/AdminController.java` | Admin dashboard, AI tester, email tester, env status, user/activity management |
@@ -85,7 +85,6 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | DELETE | `/api/admin/activities/{id}` | admin | Delete activity |
 | POST | `/api/admin/test-ai` | admin | Test Gemini API connection |
 | POST | `/api/admin/test-email` | admin | Send test email via Resend (accepts `{email}` body) |
-| GET | `/api/admin/test-email/inbox` | admin | Read testmail.app inbox |
 | GET | `/api/admin/env-status` | admin | Environment variable status |
 
 ### Analyze params
@@ -109,8 +108,6 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | `GEMINI_API_KEY` | no | empty | Gemini AI features |
 | `RESEND_API_KEY` | no | hardcoded default | Resend.com email delivery |
 | `RESEND_FROM` | no | `HikerAid <onboarding@resend.dev>` | Email sender address |
-| `TESTMAIL_API_KEY` | no | hardcoded default | testmail.app inbox reader |
-| `TESTMAIL_NAMESPACE` | no | empty | testmail.app namespace for admin inbox |
 
 Note: Resend free tier without verified domain can only send to the account owner (`hikeraid@gmail.com`). Verify domain at resend.com/domains to send to any recipient.
 
@@ -167,8 +164,6 @@ No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfigu
 3. Admin test - sent from admin panel Email tab
 
 **Email template rules**: ASCII only in email bodies - no em dashes, no Unicode. Use plain hyphens. All emails include `https://hikeraid.onrender.com` link.
-
-**testmail.app**: Read-only API for the admin inbox viewer. GET `https://api.testmail.app/api/json?apikey=...&namespace=...`. No POST/send capability - it's receive-only.
 
 ## Gemini AI integration
 
@@ -238,8 +233,6 @@ State variables: `routeData`, `currentGpxText`, `currentUser`, `gpsWatchId`, `is
 |---|---|---|
 | AI tip truncated mid-sentence | `thinkingConfig` at top level caused 400; thinking tokens consumed `maxOutputTokens` | Remove `thinkingConfig`, increase `maxOutputTokens`, parse parts backwards |
 | Emails not delivered (SMTP) | Gmail SMTP auth issues, silent exception swallowing | Switched to Resend.com HTTP API |
-| Emails not delivered (testmail.app) | testmail.app API is GET-only (no POST send) | Switched to Resend.com for sending |
-| Emails not delivered (direct SMTP) | `mx.testmail.app:25` rejects connections | Switched to Resend.com |
 | Garbled chars in emails (`?`) | Em dash (U+2014) in plain text body | ASCII only in email templates |
 | Logout broken | Spring Security 7 removed `AntPathRequestMatcher`, GET not matched | Lambda `RequestMatcher` matching any method |
 | Admin panel shows raw `&#NNNN;` | `textContent` doesn't render HTML entities | Use `\uXXXX` JS escape sequences |

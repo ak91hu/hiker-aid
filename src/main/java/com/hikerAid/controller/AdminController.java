@@ -181,7 +181,6 @@ public class AdminController {
         env.put("ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank());
         env.put("adminEmailValue", adminEmail != null ? adminEmail : "(not set)");
         env.put("RESEND_API_KEY", emailService.isConfigured());
-        env.put("TESTMAIL_INBOX", emailService.isTestmailConfigured());
         return ResponseEntity.ok(env);
     }
 
@@ -219,14 +218,6 @@ public class AdminController {
             result.put("error", e.getMessage());
         }
         return ResponseEntity.ok(result);
-    }
-
-    @GetMapping("/api/admin/test-email/inbox")
-    @ResponseBody
-    public ResponseEntity<?> testEmailInbox(@AuthenticationPrincipal OAuth2User principal,
-                                            @RequestParam(required = false) String tag) {
-        if (!isAdmin(principal)) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(emailService.fetchTestmailInbox(tag));
     }
 
     private boolean isAdmin(OAuth2User principal) {

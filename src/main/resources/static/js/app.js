@@ -1006,12 +1006,7 @@
       if (data.available && data.tip) {
         document.getElementById('ai-tip-text').textContent = data.tip;
         card.classList.remove('hidden');
-      } else if (data.available === false) {
-        const msg = data.reason === 'no-key'
-          ? 'AI tips require a Gemini API key. Set GEMINI_API_KEY to enable.'
-          : 'AI tips temporarily unavailable. Please try again later.';
-        document.getElementById('ai-tip-text').textContent = msg;
-        card.classList.remove('hidden');
+        document.getElementById('btn-ai').classList.remove('hidden');
       }
     } catch (e) { /* offline */ }
   }

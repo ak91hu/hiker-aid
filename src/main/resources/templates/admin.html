@@ -162,15 +162,14 @@
 
         <div class="tab-content" id="tab-email">
             <div class="section">
-                <div class="section-header"><span class="section-icon">&#9993;</span><h2>Email Tester (Resend + testmail.app)</h2></div>
+                <div class="section-header"><span class="section-icon">&#9993;</span><h2>Email Tester (Resend)</h2></div>
                 <div class="ai-test-box" style="border-color:rgba(116,198,157,0.2);background:linear-gradient(145deg,var(--surface) 0%,rgba(116,198,157,0.05) 100%)">
-                    <p class="ai-test-desc">Sends a test email via Resend.com API. Enter a recipient or leave blank to send to your admin email. Use testmail.app inbox to verify delivery to test addresses.</p>
+                    <p class="ai-test-desc">Sends a test email via Resend.com API. Enter a recipient or leave blank to send to your admin email.</p>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
                         <input type="email" id="test-email-to" placeholder="Recipient email (blank = your email)" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.82rem;padding:10px 14px;font-family:inherit">
                     </div>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                         <button class="ai-test-btn" id="btn-test-email" style="background:linear-gradient(135deg,var(--primary-lt),var(--accent))">&#9993; Send Test Email</button>
-                        <button class="ai-test-btn" id="btn-check-inbox" style="background:linear-gradient(135deg,var(--info),#48cae4)">&#128229; Check testmail.app Inbox</button>
                     </div>
                     <div id="email-test-result" style="display:none">
                         <div class="ai-result" id="email-test-response"></div>
@@ -178,10 +177,6 @@
                             <span id="email-test-latency" class="latency-badge"></span>
                             <span id="email-test-status"></span>
                         </div>
-                    </div>
-                    <div id="email-inbox" style="display:none;margin-top:18px">
-                        <h3 style="font-size:0.82rem;color:var(--primary-lt);margin-bottom:10px">Testmail.app Inbox</h3>
-                        <div id="email-inbox-list"></div>
                     </div>
                 </div>
             </div>
@@ -214,7 +209,7 @@
     if(statsRes.ok){const s=await statsRes.json();setText('s-users',s.totalUsers);setText('s-activities',s.totalActivities);setText('s-memory',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime',s.uptime);setText('s-java',s.javaVersion);setText('s-java2',s.javaVersion);setText('s-memory2',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime2',s.uptime);setText('s-users2',s.totalUsers);setText('s-activities2',s.totalActivities);}
 
     if(envRes.ok){const env=await envRes.json();const grid=document.getElementById('env-grid');grid.innerHTML='';
-        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','RESEND_API_KEY','TESTMAIL_INBOX']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
+        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','RESEND_API_KEY']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
         if(env.adminEmailValue)document.getElementById('admin-email-note').textContent='Admin email: '+env.adminEmailValue;
     }
 
@@ -272,30 +267,6 @@
             }
         }catch(e){document.getElementById('email-test-response').textContent='Network error: '+e.message;document.getElementById('email-test-status').textContent='\u2717 Error';document.getElementById('email-test-status').className='status-fail';}
         btn.disabled=false;btn.innerHTML='&#9993; Send Test Email';
-    });
-
-    document.getElementById('btn-check-inbox').addEventListener('click',async()=>{
-        const btn=document.getElementById('btn-check-inbox');const inboxDiv=document.getElementById('email-inbox');const listDiv=document.getElementById('email-inbox-list');
-        btn.disabled=true;btn.textContent='Checking...';inboxDiv.style.display='block';
-        listDiv.innerHTML='<p class="inbox-empty">Loading...</p>';
-        try{const res=await fetch('/api/admin/test-email/inbox');const data=await res.json();
-            listDiv.innerHTML='';
-            if(data.error){listDiv.innerHTML='<p class="inbox-empty">'+esc(data.error)+'</p>';}
-            else if(!data.emails||data.emails.length===0){listDiv.innerHTML='<p class="inbox-empty">No emails in inbox (namespace: '+esc(data.namespace||'?')+')</p>';}
-            else{
-                for(const e of data.emails){
-                    const card=document.createElement('div');card.className='inbox-card';
-                    const hdr=document.createElement('div');hdr.className='inbox-card-header';
-                    const subj=document.createElement('span');subj.className='inbox-subject';subj.textContent=e.subject||'(no subject)';
-                    const time=document.createElement('span');time.className='inbox-time';time.textContent=e.timestamp?new Date(e.timestamp).toLocaleString():'';
-                    hdr.append(subj,time);
-                    const meta=document.createElement('div');meta.className='inbox-meta';meta.textContent='From: '+(e.from||'?')+' → To: '+(e.to||'?');
-                    const body=document.createElement('div');body.className='inbox-body';body.textContent=e.text||'(empty)';
-                    card.append(hdr,meta,body);listDiv.appendChild(card);
-                }
-            }
-        }catch(e){listDiv.innerHTML='<p class="inbox-empty">Error: '+esc(e.message)+'</p>';}
-        btn.disabled=false;btn.innerHTML='&#128229; Check Inbox';
     });
 
     function setText(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}

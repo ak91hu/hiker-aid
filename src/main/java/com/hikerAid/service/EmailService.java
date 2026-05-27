@@ -9,8 +9,6 @@ import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Service
@@ -18,8 +16,6 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final String RESEND_API = "https://api.resend.com/emails";
-    private static final String TESTMAIL_API = "https://api.testmail.app/api/json";
-
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -29,23 +25,8 @@ public class EmailService {
     @Value("${hikerAid.resend-from:HikerAid <onboarding@resend.dev>}")
     private String resendFrom;
 
-    @Value("${hikerAid.testmail-api-key:}")
-    private String testmailApiKey;
-
-    @Value("${hikerAid.testmail-namespace:}")
-    private String testmailNamespace;
-
     public boolean isConfigured() {
         return resendApiKey != null && !resendApiKey.isBlank();
-    }
-
-    public boolean isTestmailConfigured() {
-        return testmailApiKey != null && !testmailApiKey.isBlank()
-            && testmailNamespace != null && !testmailNamespace.isBlank();
-    }
-
-    public String getTestmailNamespace() {
-        return testmailNamespace;
     }
 
     // ── Sending via Resend ──────────────────────────────────────────────
@@ -146,61 +127,4 @@ public class EmailService {
         }
     }
 
-    // ── Testmail.app inbox reader ───────────────────────────────────────
-
-    public Map<String, Object> fetchTestmailInbox(String tag) {
-        if (!isTestmailConfigured()) {
-            return Map.of("error", "Testmail.app not configured - set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
-        }
-        try {
-            String url = TESTMAIL_API + "?apikey=" + enc(testmailApiKey)
-                    + "&namespace=" + enc(testmailNamespace)
-                    + "&pretty=true&livequery=false";
-            if (tag != null && !tag.isBlank()) {
-                url += "&tag=" + enc(tag);
-            }
-
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                return Map.of("error", "Testmail API returned " + response.getStatusCode());
-            }
-
-            JsonNode root = objectMapper.readTree(response.getBody());
-            String result = root.path("result").asText("");
-            if (!"success".equals(result)) {
-                return Map.of("error", "Testmail API: " + root.path("message").asText("unknown error"));
-            }
-
-            int count = root.path("count").asInt(0);
-            List<Map<String, Object>> emails = new ArrayList<>();
-            JsonNode emailsNode = root.path("emails");
-            if (emailsNode.isArray()) {
-                for (int i = 0; i < Math.min(emailsNode.size(), 20); i++) {
-                    JsonNode e = emailsNode.get(i);
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("id", e.path("id").asText());
-                    m.put("subject", e.path("subject").asText());
-                    m.put("from", e.path("from").asText());
-                    m.put("to", e.path("to").asText());
-                    m.put("text", e.path("text").asText());
-                    m.put("timestamp", e.path("timestamp").asLong());
-                    emails.add(m);
-                }
-            }
-
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("success", true);
-            resp.put("count", count);
-            resp.put("emails", emails);
-            resp.put("namespace", testmailNamespace);
-            return resp;
-        } catch (Exception e) {
-            log.error("Testmail inbox fetch error: {}", e.getMessage());
-            return Map.of("error", "Testmail API error: " + e.getMessage());
-        }
-    }
-
-    private String enc(String v) {
-        return URLEncoder.encode(v, StandardCharsets.UTF_8);
-    }
 }
