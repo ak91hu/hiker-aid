@@ -211,7 +211,7 @@
     if(statsRes.ok){const s=await statsRes.json();setText('s-users',s.totalUsers);setText('s-activities',s.totalActivities);setText('s-memory',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime',s.uptime);setText('s-java',s.javaVersion);setText('s-java2',s.javaVersion);setText('s-memory2',s.memoryUsedMb+'/'+s.memoryMaxMb+' MB');setText('s-uptime2',s.uptime);setText('s-users2',s.totalUsers);setText('s-activities2',s.totalActivities);}
 
     if(envRes.ok){const env=await envRes.json();const grid=document.getElementById('env-grid');grid.innerHTML='';
-        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','MAIL_USERNAME','TESTMAIL_API_KEY']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
+        for(const v of['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GEMINI_API_KEY','ADMIN_EMAIL','TESTMAIL_API_KEY']){const ok=env[v]===true;const item=document.createElement('div');item.className='env-item';item.innerHTML=`<span class="env-dot ${ok?'ok':'missing'}"></span><span class="env-name">${v}</span><span class="env-status">${ok?'&#10003; Active':'&#10007; Missing'}</span>`;grid.appendChild(item);}
         if(env.adminEmailValue)document.getElementById('admin-email-note').textContent='Admin email: '+env.adminEmailValue;
     }
 

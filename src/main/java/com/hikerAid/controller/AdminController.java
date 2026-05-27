@@ -174,8 +174,7 @@ public class AdminController {
         env.put("GEMINI_API_KEY", geminiKey != null && !geminiKey.isBlank());
         env.put("ADMIN_EMAIL", adminEmail != null && !adminEmail.isBlank());
         env.put("adminEmailValue", adminEmail != null ? adminEmail : "(not set)");
-        env.put("MAIL_USERNAME", emailService.isConfigured());
-        env.put("TESTMAIL_API_KEY", emailService.isTestmailConfigured());
+        env.put("TESTMAIL_API_KEY", emailService.isConfigured());
         return ResponseEntity.ok(env);
     }
 
@@ -185,32 +184,22 @@ public class AdminController {
         if (!isAdmin(principal)) return ResponseEntity.status(403).build();
 
         Map<String, Object> result = new HashMap<>();
-        result.put("smtpConfigured", emailService.isConfigured());
-        result.put("testmailConfigured", emailService.isTestmailConfigured());
+        result.put("configured", emailService.isConfigured());
 
         if (!emailService.isConfigured()) {
             result.put("success", false);
-            result.put("error", "SMTP not configured — set MAIL_USERNAME and MAIL_PASSWORD");
-            return ResponseEntity.ok(result);
-        }
-        if (!emailService.isTestmailConfigured()) {
-            result.put("success", false);
-            result.put("error", "Testmail.app not configured — set TESTMAIL_NAMESPACE");
+            result.put("error", "Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
             return ResponseEntity.ok(result);
         }
 
-        String tag = "hikeraid-test-" + System.currentTimeMillis();
         long start = System.currentTimeMillis();
         try {
-            emailService.sendTestEmail(tag,
-                    "HikerAid Email Test",
-                    "This is a test email from HikerAid admin panel.\nTimestamp: " + java.time.Instant.now());
+            emailService.sendTestEmail();
             long latency = System.currentTimeMillis() - start;
             result.put("success", true);
-            result.put("tag", tag);
             result.put("latencyMs", latency);
-            result.put("sentTo", tag + "." + emailService.getTestmailNamespace() + "@inbox.testmail.app");
-            result.put("message", "Email sent — check inbox below");
+            result.put("namespace", emailService.getNamespace());
+            result.put("message", "Email sent to testmail.app — check inbox below");
         } catch (Exception e) {
             result.put("success", false);
             result.put("error", e.getMessage());
@@ -223,7 +212,7 @@ public class AdminController {
     public ResponseEntity<?> testEmailInbox(@AuthenticationPrincipal OAuth2User principal,
                                             @RequestParam(required = false) String tag) {
         if (!isAdmin(principal)) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(emailService.fetchTestmailInbox(tag));
+        return ResponseEntity.ok(emailService.fetchInbox(tag));
     }
 
     private boolean isAdmin(OAuth2User principal) {
