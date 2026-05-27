@@ -55,14 +55,14 @@ public class EmailService {
         String body = "Hey there,\n\n"
                 + inviterName + " uses HikerAid to plan safer hikes and wants you as a trail buddy.\n\n"
                 + "What is HikerAid?\n"
-                + "A free app that analyzes hiking routes — turnaround times, daylight margins,\n"
+                + "A free app that analyzes hiking routes - turnaround times, daylight margins,\n"
                 + "difficulty scoring, and real-time GPS tracking. When friends are connected,\n"
                 + "the app can send your GPS coordinates in an emergency.\n\n"
                 + "How to connect:\n"
                 + "1. Go to HikerAid and sign in with Google\n"
                 + "2. The friendship with " + inviterName + " will be created automatically\n"
                 + "3. You'll appear in each other's emergency contact list\n\n"
-                + "No cost, no installation — it runs in your browser and works offline.\n\n"
+                + "No cost, no installation - it runs in your browser and works offline.\n\n"
                 + "Stay safe on the trails,\n"
                 + "The HikerAid Team";
         sendViaResend(toEmail, subject, body);
@@ -70,7 +70,7 @@ public class EmailService {
 
     public void sendEmergencyAlert(String toEmail, String hikerName, double latitude, double longitude) throws Exception {
         String mapsUrl = "https://www.google.com/maps?q=" + latitude + "," + longitude;
-        String subject = "EMERGENCY — " + hikerName + " needs help on the trail!";
+        String subject = "EMERGENCY - " + hikerName + " needs help on the trail!";
         String body = "--- EMERGENCY ALERT ---\n\n"
                 + hikerName + " has triggered an emergency alert from HikerAid.\n"
                 + "They may be injured, lost, or in danger and need immediate help.\n\n"
@@ -90,7 +90,7 @@ public class EmailService {
     }
 
     public void sendTestEmail(String toEmail) throws Exception {
-        String subject = "HikerAid — Email System Test";
+        String subject = "HikerAid - Email System Test";
         String body = "This is a test email from the HikerAid admin panel.\n\n"
                 + "If you're reading this, the email system is working correctly.\n\n"
                 + "Sent at: " + java.time.Instant.now() + "\n"
@@ -100,7 +100,7 @@ public class EmailService {
 
     private void sendViaResend(String to, String subject, String body) throws Exception {
         if (!isConfigured()) {
-            throw new IllegalStateException("Resend not configured — set RESEND_API_KEY env var");
+            throw new IllegalStateException("Resend not configured - set RESEND_API_KEY env var");
         }
 
         log.info("Sending email via Resend: to={}, subject={}", to, subject);
@@ -140,7 +140,7 @@ public class EmailService {
 
     public Map<String, Object> fetchTestmailInbox(String tag) {
         if (!isTestmailConfigured()) {
-            return Map.of("error", "Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
+            return Map.of("error", "Testmail.app not configured - set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
         }
         try {
             String url = TESTMAIL_API + "?apikey=" + enc(testmailApiKey)
