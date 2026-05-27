@@ -180,6 +180,22 @@ Get a saved activity's GPX data. Requires authentication + ownership.
 
 Delete a saved activity. Requires authentication + ownership.
 
+### `GET /api/user/stats`
+
+Aggregated stats for logged-in user: total hikes, km, elevation, calories, personal records. Requires authentication.
+
+### `POST /api/ai-analysis`
+
+AI route coaching via Gemini 2.5 Flash. Send `{name, stats, safety}` JSON. Returns `{available, analysis}`.
+
+### `GET /api/ai-tip`
+
+Seasonal hiking safety tip from Gemini. Public endpoint.
+
+### `GET /admin`
+
+Admin dashboard (tabbed: Overview, Users, Activities, AI Connector, System). Requires admin role.
+
 ### `GET /api/health`
 
 Returns `{"status":"ok","app":"HikerAid","version":"1.0.0"}`.
@@ -191,43 +207,48 @@ Returns `{"status":"ok","app":"HikerAid","version":"1.0.0"}`.
 ```
 src/main/java/com/hikerAid/
   config/
-    SecurityConfig.java              Spring Security + OAuth2 configuration
+    SecurityConfig.java              Spring Security + OAuth2, endpoint permissions
   controller/
-    GpxApiController.java            POST /api/analyze + health check
+    GpxApiController.java            POST /api/analyze + GET /api/health
     ActivityController.java          CRUD /api/activities
-    UserController.java              GET /api/user (auth status)
+    AdminController.java             Admin panel page + /api/admin/* endpoints
+    AiController.java                POST /api/ai-analysis + GET /api/ai-tip
+    UserController.java              GET /api/user + /api/user/stats
     HomeController.java              GET / (Thymeleaf page)
     IconController.java              PWA icon fallback (SVG)
   entity/
-    UserEntity.java                  JPA user (Google ID, email, name, avatar)
-    ActivityEntity.java              JPA activity (GPX data + summary stats)
+    UserEntity.java                  JPA user (Google ID, email, name, avatar, admin)
+    ActivityEntity.java              JPA activity (GPX data + all stats)
   model/
-    AnalysisResult.java              API response record
+    AnalysisResult.java              API response record (stats + safety)
     RouteStats.java                  Route statistics record
     SafetyAnalysis.java              Safety analysis record
     GpxData.java                     Parsed GPX structure
-    TrackPoint.java                  Single GPS point (lat/lon/ele/time/hr/cad)
-    ElevationPoint.java              Elevation profile data point
+    TrackPoint.java                  GPS point (lat/lon/ele/time/hr/cad)
+    ElevationPoint.java              Elevation profile point
     WaypointData.java                GPX waypoint
   repository/
-    UserRepository.java              User data access
-    ActivityRepository.java          Activity data access
+    UserRepository.java              findByGoogleId
+    ActivityRepository.java          findByUserId, countByUserId, deleteAllByUserId
   service/
     GpxParserService.java            XXE-safe DOM GPX parser
-    RouteAnalysisService.java        All analysis: Tobler, safety, scoring, calories
-    CustomOAuth2UserService.java     Google login → user sync
+    RouteAnalysisService.java        Tobler, safety, difficulty, calories, deadband
+    GeminiService.java               Gemini 2.5 Flash API client
+    CustomOAuth2UserService.java     Google login -> user sync + admin flag
 
 src/main/resources/
-  application.properties             Server + database + OAuth config
-  templates/index.html               Single-page Thymeleaf template
+  application.properties             Server, H2 DB, OAuth, Gemini config
+  templates/
+    index.html                       Main SPA (upload, viewer, recording)
+    admin.html                       Admin panel (tabbed dashboard)
   static/
     css/style.css                    Mobile-first dark theme
-    js/app.js                        Upload, recording, auth, activities, UI state
+    js/app.js                        Upload, recording, auth, activities, sync, AI
     js/map.js                        Leaflet map, gradient segments, safety markers
     js/elevation.js                  Chart.js elevation profile
     sw.js                            Service worker (offline PWA)
     manifest.json                    PWA manifest + share target
-    icons/icon.svg                   App icon
+    icons/icon.svg                   App icon (mountain + first aid cross)
 ```
 
 ---
