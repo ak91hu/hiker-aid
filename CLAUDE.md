@@ -51,7 +51,7 @@ Health check: `curl http://localhost:8080/api/health`
 
 ## Database
 
-H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
+PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. Tables auto-created via `ddl-auto=update`.
 
 | Table | Key columns |
 |---|---|
