@@ -23,18 +23,51 @@
 
 <!-- ═══════════════════════════════════════════════════════ UPLOAD SCREEN -->
 <div id="upload-screen" class="screen active">
-    <div class="user-bar" id="user-bar">
-        <div id="offline-banner" class="offline-banner hidden">Offline</div>
-        <div id="user-info" class="user-info hidden">
-            <img id="user-avatar" class="avatar" alt="">
-            <span id="user-name"></span>
-            <button id="btn-sync" class="sync-btn hidden" title="Sync pending activities">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
-                </svg>
-                <span id="sync-badge" class="sync-badge">0</span>
-            </button>
-            <a href="/api/logout" id="logout-btn" class="logout-link">Logout</a>
+    <div id="offline-banner" class="offline-banner hidden">Offline</div>
+
+    <div id="user-panel" class="user-panel hidden">
+        <div class="up-header">
+            <img id="user-avatar" class="up-avatar" alt="">
+            <div class="up-identity">
+                <span id="user-name" class="up-name"></span>
+                <span id="user-email" class="up-email"></span>
+            </div>
+            <div class="up-actions">
+                <span id="admin-badge" class="up-admin-badge hidden">Admin</span>
+                <button id="btn-sync" class="sync-btn hidden" title="Sync pending activities">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                    </svg>
+                    <span id="sync-badge" class="sync-badge">0</span>
+                </button>
+                <a href="/api/logout" id="logout-btn" class="up-logout">Logout</a>
+            </div>
+        </div>
+        <div class="up-stats-row">
+            <div class="up-stat">
+                <span class="up-stat-val" id="us-hikes">0</span>
+                <span class="up-stat-lbl">Hikes</span>
+            </div>
+            <div class="up-stat-divider"></div>
+            <div class="up-stat">
+                <span class="up-stat-val" id="us-km">0</span>
+                <span class="up-stat-lbl">km</span>
+            </div>
+            <div class="up-stat-divider"></div>
+            <div class="up-stat">
+                <span class="up-stat-val" id="us-gain">0</span>
+                <span class="up-stat-lbl">m climbed</span>
+            </div>
+            <div class="up-stat-divider"></div>
+            <div class="up-stat">
+                <span class="up-stat-val" id="us-cal">0</span>
+                <span class="up-stat-lbl">kcal</span>
+            </div>
+            <div class="up-stat-divider"></div>
+            <div class="up-stat">
+                <span class="up-stat-val" id="us-friends">0</span>
+                <span class="up-stat-lbl">Friends</span>
+            </div>
         </div>
     </div>
     <div class="upload-hero">
@@ -122,15 +155,6 @@
     </div>
 
     <button id="btn-record" class="record-btn">Record a Hike</button>
-
-    <div id="user-stats-section" class="user-stats-section hidden">
-        <div class="user-stats-grid">
-            <div class="user-stat"><span class="user-stat-icon">&#9968;</span><span class="user-stat-val" id="us-hikes">0</span><span class="user-stat-lbl">hikes</span></div>
-            <div class="user-stat"><span class="user-stat-icon">&#128739;</span><span class="user-stat-val" id="us-km">0</span><span class="user-stat-lbl">km total</span></div>
-            <div class="user-stat"><span class="user-stat-icon">&#9650;</span><span class="user-stat-val" id="us-gain">0</span><span class="user-stat-lbl">m climbed</span></div>
-            <div class="user-stat"><span class="user-stat-icon">&#128293;</span><span class="user-stat-val" id="us-cal">0</span><span class="user-stat-lbl">kcal burned</span></div>
-        </div>
-    </div>
 
     <div id="friends-section" class="friends-section hidden">
         <h2 class="friends-title">Hiking Friends</h2>

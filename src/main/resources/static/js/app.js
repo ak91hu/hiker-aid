@@ -160,16 +160,15 @@
       if (data.loggedIn) {
         currentUser = data;
         document.getElementById('login-btn').classList.add('hidden');
-        const info = document.getElementById('user-info');
-        info.classList.remove('hidden');
+        const panel = document.getElementById('user-panel');
+        panel.classList.remove('hidden');
         document.getElementById('user-avatar').src = data.avatar || '';
         document.getElementById('user-name').textContent = data.name || data.email;
+        document.getElementById('user-email').textContent = data.email || '';
         if (data.admin) {
-          const adminLink = document.createElement('a');
-          adminLink.href = '/admin';
-          adminLink.className = 'admin-link';
-          adminLink.textContent = 'Admin';
-          info.insertBefore(adminLink, document.getElementById('logout-btn'));
+          const badge = document.getElementById('admin-badge');
+          badge.classList.remove('hidden');
+          badge.addEventListener('click', () => { window.location.href = '/admin'; });
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         loadActivities();
@@ -277,13 +276,10 @@
       const res = await fetch('/api/user/stats');
       if (!res.ok) return;
       const s = await res.json();
-      if (s.totalActivities > 0) {
-        document.getElementById('user-stats-section').classList.remove('hidden');
-        setText('us-hikes', s.totalActivities);
-        setText('us-km', s.totalKm);
-        setText('us-gain', s.totalGainM);
-        setText('us-cal', s.totalCalories);
-      }
+      setText('us-hikes', s.totalActivities || 0);
+      setText('us-km', s.totalKm || 0);
+      setText('us-gain', s.totalGainM || 0);
+      setText('us-cal', s.totalCalories || 0);
     } catch (e) { /* ignore */ }
   }
 
@@ -367,6 +363,7 @@
       const listEl = document.getElementById('friends-list');
       listEl.innerHTML = '';
       hasFriends = data.friends.length > 0;
+      setText('us-friends', data.friends.length);
 
       for (const f of data.friends) {
         const card = document.createElement('div');

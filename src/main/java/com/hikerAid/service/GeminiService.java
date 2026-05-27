@@ -36,7 +36,7 @@ public class GeminiService {
             )),
             "generationConfig", Map.of(
                 "temperature", 0.7,
-                "maxOutputTokens", 800
+                "maxOutputTokens", 4096
             )
         );
 
@@ -86,7 +86,8 @@ public class GeminiService {
 
         Map<String, Object> request = Map.of(
             "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-            "generationConfig", Map.of("temperature", 0.8, "maxOutputTokens", 300)
+            "generationConfig", Map.of("temperature", 0.8, "maxOutputTokens", 1024),
+            "thinkingConfig", Map.of("thinkingBudget", 0)
         );
 
         try {
