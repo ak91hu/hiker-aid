@@ -46,7 +46,6 @@
 - **Elevation deadband** — 3m threshold filters GPS noise from ascent/descent totals
 - **Difficulty scoring** — composite 0-100 score from distance, ascent, and max gradient
 - **Calorie estimate** — accounts for flat terrain, climbing, and descent (eccentric work)
-- **Heart rate display** — avg/max HR when GPX contains Garmin/TrackPointExtension data
 - **Waypoints** — parsed and displayed with type-specific icons
 - **Adaptive gradient smoothing** — window scales with GPS point density (~50m)
 
@@ -162,7 +161,7 @@ Analyze a GPX file. Multipart form data. Public endpoint.
 | `startMinute` | int | 0 | Planned start minute (0-59) |
 
 **Response:** `AnalysisResult` JSON containing:
-- `stats` — distance, elevation, time, calories, difficulty, heart rate
+- `stats` — distance, elevation, time, calories, difficulty
 - `safety` — pace factor, sunset, daylight margin, turnaround, point of no return
 - `trackPoints` — `[lat, lon]` array for map rendering
 - `gradientSegments` — `[lat1, lon1, lat2, lon2, gradientPct]` for gradient overlay
@@ -363,7 +362,6 @@ Accuracy: ~10-15 minutes. The 30-minute safety buffer compensates for this uncer
 ## GPX Format Support
 
 - Track points (`<trkpt>`) with elevation, timestamps
-- Garmin heart rate extensions (`<gpxtpx:hr>`, `<ns3:hr>`, `<heartrate>`)
 - Cadence extensions (`<cad>`, `<gpxtpx:cad>`)
 - Route points (`<rtept>`) — treated as track when no `<trk>` present
 - Waypoints (`<wpt>`) with name, description, symbol, type

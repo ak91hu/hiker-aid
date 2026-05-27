@@ -35,22 +35,12 @@ public class RouteAnalysisService {
 
         double maxEle = -Double.MAX_VALUE, minEle = Double.MAX_VALUE;
         double maxAbsGradient = 0;
-        boolean hasEle = false, hasHr = false, hasTime = false;
-
-        long hrSum = 0;
-        int hrCount = 0;
-        int maxHr = 0;
+        boolean hasEle = false, hasTime = false;
 
         if (points.get(0).elevation() != null) {
             hasEle = true;
             maxEle = points.get(0).elevation();
             minEle = points.get(0).elevation();
-        }
-        if (points.get(0).heartRate() != null) {
-            hasHr = true;
-            hrSum += points.get(0).heartRate();
-            hrCount++;
-            maxHr = points.get(0).heartRate();
         }
 
         for (int i = 1; i < points.size(); i++) {
@@ -76,12 +66,6 @@ public class RouteAnalysisService {
                 maxAbsGradient = Math.max(maxAbsGradient, Math.abs(rawGradients[i]));
             }
 
-            if (curr.heartRate() != null) {
-                hasHr = true;
-                hrSum += curr.heartRate();
-                hrCount++;
-                maxHr = Math.max(maxHr, curr.heartRate());
-            }
             if (curr.time() != null) hasTime = true;
         }
 
@@ -103,9 +87,6 @@ public class RouteAnalysisService {
         int diffScore = difficultyScore(totalDistKm, totalAscent, maxAbsGradient);
         double calories = estimateCalories(weightKg, heightCm, totalDistKm, totalAscent, totalDescent, movingMinutes);
 
-        Integer avgHr = hrCount > 0 ? (int) (hrSum / hrCount) : null;
-        Integer maxHrVal = hrCount > 0 ? maxHr : null;
-
         RouteStats stats = new RouteStats(
             round2(totalDistKm),
             round1(totalAscent),
@@ -121,10 +102,7 @@ public class RouteAnalysisService {
             points.size(),
             round1(avgSpeedKmh),
             hasEle,
-            hasHr,
-            hasTime,
-            avgHr,
-            maxHrVal
+            hasTime
         );
 
         List<double[]> trackPts = buildTrackPoints(points);
@@ -460,7 +438,7 @@ public class RouteAnalysisService {
 
     private RouteStats emptyStats(int pointCount) {
         return new RouteStats(0, 0, 0, 0, 0, 0, 0, 0, "Unknown", 0, 0, pointCount, 0,
-            false, false, false, null, null);
+            false, false);
     }
 
     private double round1(double v) { return Math.round(v * 10.0) / 10.0; }

@@ -85,6 +85,51 @@ public class GeminiService {
         return MODELS[0];
     }
 
+    public String testConnection() throws Exception {
+        if (!isAvailable()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+
+        Map<String, Object> request = Map.of(
+            "contents", List.of(Map.of("parts", List.of(Map.of("text", "Reply with exactly one word: OK")))),
+            "generationConfig", Map.of("temperature", 0.0, "maxOutputTokens", 16)
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        Exception lastError = null;
+        for (String model : MODELS) {
+            String url = GEMINI_BASE + model + ":generateContent?key=" + apiKey;
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    JsonNode root = objectMapper.readTree(response.getBody());
+                    JsonNode error = root.path("error");
+                    if (!error.isMissingNode()) {
+                        lastError = new RuntimeException(model + ": " + error.path("message").asText());
+                        continue;
+                    }
+                    JsonNode candidates = root.path("candidates");
+                    if (candidates.isArray() && !candidates.isEmpty()) {
+                        String text = extractText(candidates.get(0));
+                        if (text != null) return model + " responded: " + text;
+                    }
+                    lastError = new RuntimeException(model + ": unexpected response format");
+                }
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                try {
+                    JsonNode err = objectMapper.readTree(e.getResponseBodyAsString());
+                    lastError = new RuntimeException(model + " " + e.getStatusCode() + ": " + err.path("error").path("message").asText(e.getResponseBodyAsString()));
+                } catch (Exception ignored) {
+                    lastError = new RuntimeException(model + " " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+                }
+            } catch (Exception e) {
+                lastError = new RuntimeException(model + ": " + e.getMessage());
+            }
+        }
+        throw lastError != null ? lastError : new RuntimeException("All models failed with no error detail");
+    }
+
     private String callGemini(Map<String, Object> request) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

@@ -5,6 +5,5 @@ public record TrackPoint(
     double lon,
     Double elevation,
     String time,
-    Integer heartRate,
     Integer cadence
 ) {}

@@ -15,8 +15,5 @@ public record RouteStats(
     int pointCount,
     double avgSpeedKmh,
     boolean hasElevationData,
-    boolean hasHeartRateData,
-    boolean hasTimestamps,
-    Integer avgHeartRate,
-    Integer maxHeartRate
+    boolean hasTimestamps
 ) {}

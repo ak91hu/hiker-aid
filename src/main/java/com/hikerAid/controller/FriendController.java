@@ -128,14 +128,16 @@ public class FriendController {
             }
             FriendInviteEntity invite = new FriendInviteEntity(user, email);
             friendInviteRepository.save(invite);
-            try {
-                emailService.sendFriendInvite(email, user.getName());
-            } catch (Exception e) {
-                log.error("Failed to send invite email to {}: {}", email, e.getMessage());
-                return ResponseEntity.ok(Map.of("status", "invited",
-                        "message", "Invite saved but email delivery failed: " + e.getMessage()));
+            if (emailService.isConfigured()) {
+                try {
+                    emailService.sendFriendInvite(email, user.getName());
+                    return ResponseEntity.ok(Map.of("status", "invited", "message", "Invite email sent to " + email));
+                } catch (Exception e) {
+                    log.warn("Invite email to {} failed (invite still saved): {}", email, e.getMessage());
+                }
             }
-            return ResponseEntity.ok(Map.of("status", "invited", "message", "Invite email sent to " + email));
+            return ResponseEntity.ok(Map.of("status", "invited",
+                    "message", "Invite saved for " + email + ". They'll be connected automatically when they sign up at hikeraid.onrender.com"));
         }
     }
 

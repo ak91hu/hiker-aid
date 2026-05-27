@@ -33,12 +33,12 @@ public class AiController {
     @GetMapping("/ai-tip")
     public ResponseEntity<?> tip() {
         if (!geminiService.isAvailable()) {
-            return ResponseEntity.ok(Map.of("available", false));
+            return ResponseEntity.ok(Map.of("available", false, "reason", "no-key"));
         }
 
         String tip = geminiService.getHikingTip();
         if (tip == null) {
-            return ResponseEntity.ok(Map.of("available", false));
+            return ResponseEntity.ok(Map.of("available", false, "reason", "api-error"));
         }
 
         return ResponseEntity.ok(Map.of("available", true, "tip", tip));

@@ -698,16 +698,6 @@
       timeCard.title = `Moving time: ${formatTime(s.estimatedTimeMinutes)}`;
     }
 
-    if (s.hasHeartRateData && s.avgHeartRate) {
-      setText('stat-avg-hr', `${s.avgHeartRate} bpm`);
-      setText('stat-max-hr', `${s.maxHeartRate} bpm`);
-      document.getElementById('card-avg-hr').style.display = '';
-      document.getElementById('card-max-hr').style.display = '';
-    } else {
-      document.getElementById('card-avg-hr').style.display = 'none';
-      document.getElementById('card-max-hr').style.display = 'none';
-    }
-
     const diffEl = document.getElementById('stat-difficulty');
     const diffLabel = s.difficulty || 'Unknown';
     diffEl.textContent = diffLabel;
@@ -1017,7 +1007,10 @@
         document.getElementById('ai-tip-text').textContent = data.tip;
         card.classList.remove('hidden');
       } else if (data.available === false) {
-        document.getElementById('ai-tip-text').textContent = 'AI tips require a Gemini API key. Set GEMINI_API_KEY to enable.';
+        const msg = data.reason === 'no-key'
+          ? 'AI tips require a Gemini API key. Set GEMINI_API_KEY to enable.'
+          : 'AI tips temporarily unavailable. Please try again later.';
+        document.getElementById('ai-tip-text').textContent = msg;
         card.classList.remove('hidden');
       }
     } catch (e) { /* offline */ }
@@ -1098,10 +1091,6 @@
       `Calories:       ${Math.round(s.estimatedCalories)} kcal`,
       `Difficulty:     ${s.difficulty} (${s.difficultyScore}/100)`,
     ];
-    if (s.hasHeartRateData && s.avgHeartRate) {
-      lines.push(`Avg heart rate: ${s.avgHeartRate} bpm`);
-      lines.push(`Max heart rate: ${s.maxHeartRate} bpm`);
-    }
     const sf = routeData.safety;
     if (sf) {
       lines.push('');

@@ -29,7 +29,7 @@ Health check: `curl http://localhost:8080/api/health`
 | File | Purpose |
 |---|---|
 | `config/SecurityConfig.java` | Spring Security + OAuth2 config, endpoint permissions, logout (GET+POST via lambda matcher) |
-| `service/GpxParserService.java` | XXE-safe DOM GPX parser; tracks, routes, waypoints, Garmin HR extensions |
+| `service/GpxParserService.java` | XXE-safe DOM GPX parser; tracks, routes, waypoints, cadence extensions |
 | `service/RouteAnalysisService.java` | All maths: Tobler time, safety analysis, difficulty, calories, gradient smoothing |
 | `service/GeminiService.java` | Gemini AI client with model fallback chain (2.5-flash -> 2.0-flash), thinking model response parsing |
 | `service/CustomOAuth2UserService.java` | Google login -> user creation/update, admin flag, auto-convert pending friend invites |

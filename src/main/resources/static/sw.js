@@ -1,6 +1,6 @@
 /* HikerAid Service Worker — offline-first PWA */
 
-const CACHE_NAME = 'hikerAid-v13';
+const CACHE_NAME = 'hikerAid-v14';
 const TILE_CACHE = 'hikerAid-tiles-v1';
 
 const APP_SHELL = [
@@ -55,8 +55,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App shell & static assets — cache first
-  event.respondWith(cacheFirst(CACHE_NAME, event.request));
+  // App shell & static assets — network first, fall back to cache when offline
+  event.respondWith(networkFirst(CACHE_NAME, event.request));
 });
 
 function isTileRequest(url) {
@@ -67,9 +67,7 @@ function isTileRequest(url) {
       || url.hostname.includes('basemaps.cartocdn.com');
 }
 
-async function cacheFirst(cacheName, request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
+async function networkFirst(cacheName, request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -78,7 +76,8 @@ async function cacheFirst(cacheName, request) {
     }
     return response;
   } catch {
-    return new Response('Offline', { status: 503 });
+    const cached = await caches.match(request);
+    return cached || new Response('Offline', { status: 503 });
   }
 }
 

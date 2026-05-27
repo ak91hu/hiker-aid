@@ -154,12 +154,18 @@ public class AdminController {
         }
 
         long start = System.currentTimeMillis();
-        String response = geminiService.getHikingTip();
-        long latency = System.currentTimeMillis() - start;
-
-        result.put("success", response != null);
-        result.put("latencyMs", latency);
-        result.put("response", response != null ? response : "No response from Gemini");
+        try {
+            String response = geminiService.testConnection();
+            long latency = System.currentTimeMillis() - start;
+            result.put("success", true);
+            result.put("latencyMs", latency);
+            result.put("response", response);
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            result.put("success", false);
+            result.put("latencyMs", latency);
+            result.put("response", e.getMessage());
+        }
         return ResponseEntity.ok(result);
     }
 

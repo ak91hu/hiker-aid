@@ -219,8 +219,8 @@ class RouteAnalysisServiceTest {
     @Test
     void noElevationDataHandled() {
         GpxData data = makeRoute(
-            new TrackPoint(47.5, 19.0, null, null, null, null),
-            new TrackPoint(47.51, 19.01, null, null, null, null)
+            new TrackPoint(47.5, 19.0, null, null, null),
+            new TrackPoint(47.51, 19.01, null, null, null)
         );
 
         AnalysisResult result = service.analyze(data);
@@ -229,25 +229,8 @@ class RouteAnalysisServiceTest {
         assertEquals(0.0, result.stats().elevationGainM());
     }
 
-    @Test
-    void heartRateStatsComputed() {
-        GpxData data = new GpxData("HR Test", null, null,
-            List.of(List.of(
-                new TrackPoint(47.5, 19.0, 200.0, null, 120, null),
-                new TrackPoint(47.51, 19.01, 210.0, null, 140, null),
-                new TrackPoint(47.52, 19.02, 220.0, null, 160, null)
-            )),
-            List.of()
-        );
-
-        AnalysisResult result = service.analyze(data);
-        assertTrue(result.stats().hasHeartRateData());
-        assertEquals(140, result.stats().avgHeartRate());
-        assertEquals(160, result.stats().maxHeartRate());
-    }
-
     private TrackPoint pt(double lat, double lon, double ele) {
-        return new TrackPoint(lat, lon, ele, null, null, null);
+        return new TrackPoint(lat, lon, ele, null, null);
     }
 
     private GpxData makeRoute(TrackPoint... points) {

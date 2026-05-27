@@ -88,19 +88,11 @@ public class GpxParserService {
                 String eleStr = directChildText(pt, "ele");
                 Double ele = eleStr != null ? Double.parseDouble(eleStr) : null;
                 String time = directChildText(pt, "time");
-                Integer hr = parseHeartRate(pt);
                 Integer cad = parseIntFromDescendant(pt, "cad");
-                points.add(new TrackPoint(lat, lon, ele, time, hr, cad));
+                points.add(new TrackPoint(lat, lon, ele, time, cad));
             } catch (NumberFormatException ignored) {}
         }
         return points;
-    }
-
-    private Integer parseHeartRate(Element pt) {
-        // Try common Garmin/TrackPointExtension schemas
-        Integer hr = parseIntFromDescendant(pt, "hr");
-        if (hr == null) hr = parseIntFromDescendant(pt, "heartrate");
-        return hr;
     }
 
     private Integer parseIntFromDescendant(Element parent, String tagName) {
