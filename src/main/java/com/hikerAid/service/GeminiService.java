@@ -13,7 +13,7 @@ import java.util.Map;
 @Service
 public class GeminiService {
 
-    private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+    private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
     @Value("${hikerAid.gemini-api-key:}")
     private String apiKey;
@@ -51,13 +51,23 @@ public class GeminiService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode error = root.path("error");
+                if (!error.isMissingNode()) {
+                    return "Gemini error: " + error.path("message").asText();
+                }
                 JsonNode candidates = root.path("candidates");
                 if (candidates.isArray() && !candidates.isEmpty()) {
                     return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
                 }
             }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            try {
+                JsonNode err = objectMapper.readTree(e.getResponseBodyAsString());
+                return "Gemini API error: " + err.path("error").path("message").asText();
+            } catch (Exception ignored) {}
+            return "Gemini API error: " + e.getStatusCode();
         } catch (Exception e) {
-            return "AI analysis temporarily unavailable.";
+            return "AI analysis temporarily unavailable: " + e.getMessage();
         }
         return null;
     }
@@ -89,8 +99,12 @@ public class GeminiService {
                     return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
                 }
             }
-        } catch (Exception e) { /* ignore */ }
+        } catch (Exception e) { /* unavailable */ }
         return null;
+    }
+
+    public String getModelName() {
+        return GEMINI_URL.substring(GEMINI_URL.lastIndexOf("/") + 1, GEMINI_URL.indexOf(":"));
     }
 
     @SuppressWarnings("unchecked")
