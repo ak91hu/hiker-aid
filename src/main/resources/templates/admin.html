@@ -244,11 +244,11 @@
         document.getElementById('ai-test-latency').textContent='';document.getElementById('ai-test-status').textContent='';
         try{const res=await fetch('/api/admin/test-ai',{method:'POST'});const data=await res.json();
             document.getElementById('ai-test-response').textContent=data.response||data.error||'No response';
-            document.getElementById('ai-test-latency').textContent=data.latencyMs?`⏱ ${data.latencyMs}ms`:'';
+            document.getElementById('ai-test-latency').textContent=data.latencyMs?'\u23F1 '+data.latencyMs+'ms':'';
             const statusEl=document.getElementById('ai-test-status');
-            statusEl.textContent=data.success?'✓ Connected':'✗ Failed';
+            statusEl.textContent=data.success?'\u2713 Connected':'\u2717 Failed';
             statusEl.className=data.success?'status-ok':'status-fail';
-        }catch(e){document.getElementById('ai-test-response').textContent='Network error: '+e.message;document.getElementById('ai-test-status').textContent='✗ Error';document.getElementById('ai-test-status').className='status-fail';}
+        }catch(e){document.getElementById('ai-test-response').textContent='Network error: '+e.message;document.getElementById('ai-test-status').textContent='\u2717 Error';document.getElementById('ai-test-status').className='status-fail';}
         btn.disabled=false;btn.innerHTML='&#9889; Run Connection Test';
     });
 
@@ -260,13 +260,13 @@
         try{const res=await fetch('/api/admin/test-email',{method:'POST'});const data=await res.json();
             if(data.success){
                 document.getElementById('email-test-response').textContent='Sent to: '+data.sentTo+'\nTag: '+data.tag+'\n\n'+data.message;
-                document.getElementById('email-test-latency').textContent=data.latencyMs?'⏱ '+data.latencyMs+'ms':'';
-                document.getElementById('email-test-status').textContent='✓ Sent';document.getElementById('email-test-status').className='status-ok';
+                document.getElementById('email-test-latency').textContent=data.latencyMs?'\u23F1 '+data.latencyMs+'ms':'';
+                document.getElementById('email-test-status').textContent='\u2713 Sent';document.getElementById('email-test-status').className='status-ok';
             }else{
                 document.getElementById('email-test-response').textContent=data.error||'Failed';
-                document.getElementById('email-test-status').textContent='✗ Failed';document.getElementById('email-test-status').className='status-fail';
+                document.getElementById('email-test-status').textContent='\u2717 Failed';document.getElementById('email-test-status').className='status-fail';
             }
-        }catch(e){document.getElementById('email-test-response').textContent='Network error: '+e.message;document.getElementById('email-test-status').textContent='✗ Error';document.getElementById('email-test-status').className='status-fail';}
+        }catch(e){document.getElementById('email-test-response').textContent='Network error: '+e.message;document.getElementById('email-test-status').textContent='\u2717 Error';document.getElementById('email-test-status').className='status-fail';}
         btn.disabled=false;btn.innerHTML='&#9993; Send Test Email';
     });
 

@@ -1,5 +1,7 @@
 package com.hikerAid.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import java.util.Map;
 @Service
 public class GeminiService {
 
+    private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
     private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
     @Value("${hikerAid.gemini-api-key:}")
@@ -57,7 +60,13 @@ public class GeminiService {
                 }
                 JsonNode candidates = root.path("candidates");
                 if (candidates.isArray() && !candidates.isEmpty()) {
-                    return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+                    JsonNode parts = candidates.get(0).path("content").path("parts");
+                    if (parts.isArray()) {
+                        for (int i = parts.size() - 1; i >= 0; i--) {
+                            String text = parts.get(i).path("text").asText("");
+                            if (!text.isBlank()) return text;
+                        }
+                    }
                 }
             }
         } catch (org.springframework.web.client.HttpClientErrorException e) {
@@ -86,8 +95,7 @@ public class GeminiService {
 
         Map<String, Object> request = Map.of(
             "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-            "generationConfig", Map.of("temperature", 0.8, "maxOutputTokens", 1024),
-            "thinkingConfig", Map.of("thinkingBudget", 0)
+            "generationConfig", Map.of("temperature", 0.8, "maxOutputTokens", 2048)
         );
 
         try {
@@ -100,11 +108,20 @@ public class GeminiService {
                 JsonNode root = objectMapper.readTree(response.getBody());
                 JsonNode candidates = root.path("candidates");
                 if (candidates.isArray() && !candidates.isEmpty()) {
-                    String text = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
-                    return text.replaceAll("\\*+", "").replaceAll("#+ ", "").trim();
+                    JsonNode parts = candidates.get(0).path("content").path("parts");
+                    if (parts.isArray()) {
+                        for (int i = 0; i < parts.size(); i++) {
+                            String text = parts.get(i).path("text").asText("");
+                            if (!text.isBlank()) {
+                                return text.replaceAll("\\*+", "").replaceAll("#+ ", "").trim();
+                            }
+                        }
+                    }
                 }
             }
-        } catch (Exception e) { /* unavailable */ }
+        } catch (Exception e) {
+            log.warn("Hiking tip unavailable: {}", e.getMessage());
+        }
         return null;
     }
 
