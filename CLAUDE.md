@@ -1,12 +1,14 @@
-# HikerAid — Claude Code context
+# HikerAid - Claude Code context
 
 ## What this project is
 
 Spring Boot 4.0.6 (Spring Framework 7, Jackson 3, Jakarta EE 11) mobile-first PWA for GPX route analysis with safety-first hiking features. Runs on port 8080 (or `$PORT` on Render).
 
-**Stack**: Java 21, H2 embedded database (file-based), Google OAuth2, Gemini 2.5 Flash AI, Leaflet 1.9.4, Chart.js 4.5.1, vanilla JS frontend.
+**Live**: https://hikeraid.onrender.com
 
-**Architecture**: Single Thymeleaf page (`index.html`) + admin page (`admin.html`). Three CSS-toggled screens: `upload-screen`, `loading-screen`, `viewer-screen`. No JS framework — vanilla ES6 IIFEs. `app.js` orchestrates `map.js` and `elevation.js`.
+**Stack**: Java 21, H2 embedded database (file-based), Google OAuth2, Gemini AI (2.5-flash with 2.0-flash fallback), Resend.com email API, testmail.app inbox verification, Leaflet 1.9.4, Chart.js 4.5.1, vanilla JS frontend.
+
+**Architecture**: Single Thymeleaf page (`index.html`) + admin page (`admin.html`). Three CSS-toggled screens: `upload-screen`, `loading-screen`, `viewer-screen`. No JS framework - vanilla ES6 IIFEs. `app.js` orchestrates `map.js` and `elevation.js`.
 
 ## How to build and run
 
@@ -15,7 +17,10 @@ mvn clean package
 java -jar target/hikerAid-1.0.0.jar
 ```
 
-Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
+Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `RESEND_API_KEY`, `RESEND_FROM`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`.
+
+Note: `RESEND_API_KEY` and `TESTMAIL_API_KEY` have hardcoded defaults in `application.properties`. No env var needed unless rotating keys.
 
 Health check: `curl http://localhost:8080/api/health`
 
@@ -23,14 +28,15 @@ Health check: `curl http://localhost:8080/api/health`
 
 | File | Purpose |
 |---|---|
-| `config/SecurityConfig.java` | Spring Security + OAuth2 config, endpoint permissions |
+| `config/SecurityConfig.java` | Spring Security + OAuth2 config, endpoint permissions, logout (GET+POST via lambda matcher) |
 | `service/GpxParserService.java` | XXE-safe DOM GPX parser; tracks, routes, waypoints, Garmin HR extensions |
 | `service/RouteAnalysisService.java` | All maths: Tobler time, safety analysis, difficulty, calories, gradient smoothing |
-| `service/GeminiService.java` | Gemini 2.5 Flash API client for route coaching and hiking tips |
-| `service/CustomOAuth2UserService.java` | Google login -> user creation/update, admin flag |
-| `controller/GpxApiController.java` | `POST /api/analyze` — main analysis endpoint |
-| `controller/ActivityController.java` | CRUD `/api/activities` — user activity persistence |
-| `controller/AdminController.java` | Admin dashboard, AI tester, env status, user/activity management |
+| `service/GeminiService.java` | Gemini AI client with model fallback chain (2.5-flash -> 2.0-flash), thinking model response parsing |
+| `service/CustomOAuth2UserService.java` | Google login -> user creation/update, admin flag, auto-convert pending friend invites |
+| `service/EmailService.java` | Resend.com HTTP API for sending + testmail.app API for inbox reading |
+| `controller/GpxApiController.java` | `POST /api/analyze` - main analysis endpoint |
+| `controller/ActivityController.java` | CRUD `/api/activities` - user activity persistence |
+| `controller/AdminController.java` | Admin dashboard, AI tester, email tester, env status, user/activity management |
 | `controller/AiController.java` | `POST /api/ai-analysis`, `GET /api/ai-tip` |
 | `controller/FriendController.java` | Friend management + emergency alerts: `/api/friends/**` |
 | `controller/UserController.java` | `GET /api/user`, `GET /api/user/stats` |
@@ -38,11 +44,10 @@ Health check: `curl http://localhost:8080/api/health`
 | `entity/ActivityEntity.java` | JPA activity (GPX data + all stats, linked to user) |
 | `entity/FriendshipEntity.java` | JPA friendship (requester, addressee, status PENDING/ACCEPTED) |
 | `entity/FriendInviteEntity.java` | JPA invite for non-registered email addresses |
-| `service/EmailService.java` | Sends friend invite emails and emergency alerts via SMTP |
-| `static/js/app.js` | Upload, recording, auth, activities, offline sync, AI |
+| `static/js/app.js` | Upload, recording, auth, activities, friends, emergency, offline sync, AI, GPS tracking |
 | `static/js/map.js` | Leaflet map, gradient segments, safety markers, GPS tracking |
 | `static/js/elevation.js` | Chart.js elevation profile with gradient coloring |
-| `static/sw.js` | Service worker — cache-first app shell, stale-while-revalidate tiles |
+| `static/sw.js` | Service worker - cache-first app shell, stale-while-revalidate tiles |
 
 ## Database
 
@@ -67,10 +72,11 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | POST | `/api/ai-analysis` | public | Route performance analysis from Gemini |
 | GET/POST/DELETE | `/api/activities/**` | user | Activity CRUD (max 500/user, 15MB GPX) |
 | GET | `/api/friends` | user | List friends, pending requests, invites |
-| POST | `/api/friends/add` | user | Add friend by email (or send invite) |
+| POST | `/api/friends/add` | user | Add friend by email (or send invite via Resend) |
 | POST | `/api/friends/accept/{id}` | user | Accept pending friend request |
 | DELETE | `/api/friends/{id}` | user | Remove friend |
-| POST | `/api/friends/emergency` | user | Send emergency alert with coordinates to all friends |
+| POST | `/api/friends/emergency` | user | Send emergency alert with coordinates + accuracy to all friends |
+| GET | `/api/logout` | public | Logout (lambda matcher accepts GET+POST; Spring Security 7 removed AntPathRequestMatcher) |
 | GET | `/admin` | admin | Admin panel page |
 | GET | `/api/admin/stats` | admin | System stats |
 | GET | `/api/admin/users` | admin | All users list |
@@ -78,6 +84,8 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | DELETE | `/api/admin/users/{id}` | admin | Delete user + activities |
 | DELETE | `/api/admin/activities/{id}` | admin | Delete activity |
 | POST | `/api/admin/test-ai` | admin | Test Gemini API connection |
+| POST | `/api/admin/test-email` | admin | Send test email via Resend (accepts `{email}` body) |
+| GET | `/api/admin/test-email/inbox` | admin | Read testmail.app inbox |
 | GET | `/api/admin/env-status` | admin | Environment variable status |
 
 ### Analyze params
@@ -85,11 +93,26 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `file` | multipart | required | .gpx file (max 15 MB) |
-| `weight` | double | 70 | Body weight kg (20–300) |
-| `height` | double | 170 | Height cm (120–220) |
+| `weight` | double | 70 | Body weight kg (20-300) |
+| `height` | double | 170 | Height cm (120-220) |
 | `fitness` | int | 3 | 1=Beginner(0.6x) 2=Below avg(0.8x) 3=Average(1.0x) 4=Fit(1.15x) 5=Very fit(1.3x) |
-| `startHour` | int | current | Start hour (0–23); frontend sends current time |
-| `startMinute` | int | current | Start minute (0–59) |
+| `startHour` | int | current | Start hour (0-23); frontend sends current time |
+| `startMinute` | int | current | Start minute (0-59) |
+
+## Environment variables
+
+| Var | Required | Default | Purpose |
+|---|---|---|---|
+| `GOOGLE_CLIENT_ID` | **yes** | none | Google OAuth2 |
+| `GOOGLE_CLIENT_SECRET` | **yes** | none | Google OAuth2 |
+| `ADMIN_EMAIL` | no | empty | Email that gets admin role |
+| `GEMINI_API_KEY` | no | empty | Gemini AI features |
+| `RESEND_API_KEY` | no | hardcoded default | Resend.com email delivery |
+| `RESEND_FROM` | no | `HikerAid <onboarding@resend.dev>` | Email sender address |
+| `TESTMAIL_API_KEY` | no | hardcoded default | testmail.app inbox reader |
+| `TESTMAIL_NAMESPACE` | no | empty | testmail.app namespace for admin inbox |
+
+Note: Resend free tier without verified domain can only send to the account owner (`hikeraid@gmail.com`). Verify domain at resend.com/domains to send to any recipient.
 
 ## Important constants (RouteAnalysisService)
 
@@ -109,7 +132,7 @@ Gradient smoothing: adaptive window (~50m), not fixed 5-point.
 ```
 speed = 6.0 * exp(-3.5 * |slope + 0.05|)   // clamped [0.3, 8.0] km/h
 ```
-Do NOT change to Naismith's rule — Tobler is the intentional differentiator.
+Do NOT change to Naismith's rule - Tobler is the intentional differentiator.
 
 ### Calorie estimate (uses height)
 ```
@@ -121,11 +144,11 @@ bmr     = (10*weight + 6.25*height - 200) / 24 * hours
 total   = flat + climb + descent + bmr
 ```
 
-### Difficulty score (0–100)
+### Difficulty score (0-100)
 ```
 min(distKm*2, 40) + min(ascent/50, 40) + min(maxGrad/2.5, 20)
 ```
-Easy(<10), Moderate(10–24), Hard(25–44), Very Hard(45–64), Extreme(65+).
+Easy(<10), Moderate(10-24), Hard(25-44), Very Hard(45-64), Extreme(65+).
 
 ### Gradient colours (keep in sync: map.js + elevation.js)
 ```
@@ -133,30 +156,92 @@ Easy(<10), Moderate(10–24), Hard(25–44), Very Hard(45–64), Extreme(65+).
 <+8% #B7E4C7 | <+15% #F9C74F | <+25% #F4A261 | >=25% #E76F51
 ```
 
+## Email system
+
+**Provider**: Resend.com HTTP API (`POST https://api.resend.com/emails`).
+No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfiguration is excluded in `application.properties`.
+
+**Three email types**:
+1. Friend invite - sent when adding a non-registered user by email
+2. Emergency alert - sent to all accepted friends with GPS coordinates (lat/lon 7 decimal places + accuracy meters) and Google Maps link
+3. Admin test - sent from admin panel Email tab
+
+**Email template rules**: ASCII only in email bodies - no em dashes, no Unicode. Use plain hyphens. All emails include `https://hikeraid.onrender.com` link.
+
+**testmail.app**: Read-only API for the admin inbox viewer. GET `https://api.testmail.app/api/json?apikey=...&namespace=...`. No POST/send capability - it's receive-only.
+
+## Gemini AI integration
+
+**Model fallback**: Tries `gemini-2.5-flash` first, falls back to `gemini-2.0-flash` on 503/server error. API key errors (401/403) stop immediately.
+
+**Thinking model handling**: Gemini 2.5 Flash is a thinking model. Response `parts` array may contain thinking parts (with `thought: true`) before the actual text. `extractText()` iterates parts backwards, skipping thinking parts, to get the real output.
+
+**Do NOT use `thinkingConfig`** at request top level - it's not a valid Gemini REST API field and causes silent 400 errors. Just set `maxOutputTokens` high enough (2048+ for tips, 4096 for analysis).
+
+## GPS and emergency system
+
+**`lastGpsPosition`**: Module-level variable in `app.js`, updated by both live tracking `watchPosition` and recording `watchPosition` callbacks.
+
+**Emergency flow**:
+1. If `lastGpsPosition` exists and is < 30s old, use it immediately (no extra GPS fix delay)
+2. Otherwise, call `getCurrentPosition` with `maximumAge: 0` (guaranteed fresh fix), `timeout: 15000`
+3. POST to `/api/friends/emergency` with `{latitude, longitude, accuracy}`
+4. Backend sends email to each accepted friend via Resend with formatted coordinates, accuracy, and Google Maps link
+
 ## Security
 
 - XXE prevention: 3 `setFeature` calls + `setExpandEntityReferences(false)` in GpxParserService
 - XSS: all user content via `textContent`/DOM API, never `innerHTML`
 - CSRF: disabled for `/api/**`, mitigated by SameSite=Lax
-- IDOR: activity endpoints verify user ownership
-- Credentials: env vars only, never in source
+- IDOR: activity + friendship endpoints verify user ownership
+- Credentials: env vars only, never in source (except default API keys for dev convenience)
 - Activity limits: 15MB GPX, 500 per user
 - Admin: manual `isAdmin()` check in AdminController
 - Error messages: generic, no stack traces
+- Logout: lambda `RequestMatcher` accepting any HTTP method (Spring Security 7 removed `AntPathRequestMatcher`)
 
 ## Things to preserve
 
-- `renderer: L.canvas()` on Leaflet map — critical for 2000+ gradient polylines
-- XXE prevention in GpxParserService — the three `setFeature` calls
+- `renderer: L.canvas()` on Leaflet map - critical for 2000+ gradient polylines
+- XXE prevention in GpxParserService - the three `setFeature` calls
 - Elevation deadband (3m) in `computeElevationGainLoss`
 - Safety buffer 30 min before sunset (`SAFETY_BUFFER_MINUTES`)
 - PWA share target in `manifest.json`
 - Gradient colours must match in both `map.js` and `elevation.js`
 - Jackson 3 imports: `tools.jackson.databind` (not `com.fasterxml`)
+- `spring.autoconfigure.exclude=...MailSenderAutoConfiguration` - prevents startup failure (no SMTP configured)
+- Admin panel JS: use `\uXXXX` escape sequences for Unicode chars in `textContent` calls, not raw Unicode or HTML entities
+- Email bodies: ASCII only, no em dashes or Unicode chars (cause garbled `?` in plain text emails)
+- Gemini: iterate response parts backwards to skip thinking model reasoning
+- Logout: lambda matcher, not `AntPathRequestMatcher` (removed in Spring Security 7)
+
+## Frontend structure (app.js)
+
+The upload screen has three sections visible when logged in:
+1. **User panel** (`#user-panel`): avatar, name, email, admin badge, logout, sync button, stats grid (5 colored cards: hikes/km/climbed/kcal/friends)
+2. **User content** (`#user-content`): tabbed card with "My Activities" and "Friends" tabs. Tab switching via `.uc-tab` click handlers
+3. **AI tip card** (`#ai-tip-card`): seasonal hiking tip from Gemini, or "API key required" message
+
+State variables: `routeData`, `currentGpxText`, `currentUser`, `gpsWatchId`, `isTracking`, `lastGpsPosition`, `hasFriends`, recording state vars.
 
 ## Deployment
 
 - **Render**: auto-deploys from GitHub `main` branch via `render.yaml`
-- **Docker**: multi-stage build in `Dockerfile` (JDK 21 build → JRE 21 Alpine)
+- **Docker**: multi-stage build in `Dockerfile` (JDK 21 build -> JRE 21 Alpine)
 - **CI**: GitHub Actions `.github/workflows/ci.yml` builds on push/PR
 - **Secrets**: GitHub Secrets for CI, Render env vars for production, Windows user env vars for local dev
+- **Live URL**: https://hikeraid.onrender.com (Render free tier, cold starts ~30s)
+
+## Past issues and fixes (avoid repeating)
+
+| Issue | Root cause | Fix |
+|---|---|---|
+| AI tip truncated mid-sentence | `thinkingConfig` at top level caused 400; thinking tokens consumed `maxOutputTokens` | Remove `thinkingConfig`, increase `maxOutputTokens`, parse parts backwards |
+| Emails not delivered (SMTP) | Gmail SMTP auth issues, silent exception swallowing | Switched to Resend.com HTTP API |
+| Emails not delivered (testmail.app) | testmail.app API is GET-only (no POST send) | Switched to Resend.com for sending |
+| Emails not delivered (direct SMTP) | `mx.testmail.app:25` rejects connections | Switched to Resend.com |
+| Garbled chars in emails (`?`) | Em dash (U+2014) in plain text body | ASCII only in email templates |
+| Logout broken | Spring Security 7 removed `AntPathRequestMatcher`, GET not matched | Lambda `RequestMatcher` matching any method |
+| Admin panel shows raw `&#NNNN;` | `textContent` doesn't render HTML entities | Use `\uXXXX` JS escape sequences |
+| Gemini 503 "high demand" | Single model, no fallback | Model chain: 2.5-flash -> 2.0-flash |
+| User stats not visible | Stats in subtle inline row, hidden when 0 activities | Colored card grid, always visible |
