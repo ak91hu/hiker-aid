@@ -174,6 +174,7 @@
         document.getElementById('btn-save-activity').classList.remove('hidden');
         loadActivities();
         loadUserStats();
+        loadFriends();
         updateSyncBadge();
         if (navigator.onLine) syncPendingActivities();
       }
@@ -349,6 +350,224 @@
       setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
     }
   }
+
+  // ── Friends ────────────────────────────────────────────────────────────
+  let hasFriends = false;
+
+  async function loadFriends() {
+    if (!currentUser) return;
+    try {
+      const res = await fetch('/api/friends');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const section = document.getElementById('friends-section');
+      section.classList.remove('hidden');
+
+      const listEl = document.getElementById('friends-list');
+      listEl.innerHTML = '';
+      hasFriends = data.friends.length > 0;
+
+      for (const f of data.friends) {
+        const card = document.createElement('div');
+        card.className = 'friend-card';
+        if (f.avatar) {
+          const img = document.createElement('img');
+          img.className = 'avatar';
+          img.src = f.avatar;
+          img.alt = '';
+          card.appendChild(img);
+        }
+        const info = document.createElement('div');
+        info.className = 'friend-card-info';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'friend-card-name';
+        nameEl.textContent = f.name;
+        const emailEl = document.createElement('span');
+        emailEl.className = 'friend-card-email';
+        emailEl.textContent = f.email;
+        info.append(nameEl, emailEl);
+        card.appendChild(info);
+
+        const actions = document.createElement('div');
+        actions.className = 'friend-card-actions';
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'friend-remove-btn';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => removeFriend(f.id));
+        actions.appendChild(removeBtn);
+        card.appendChild(actions);
+        listEl.appendChild(card);
+      }
+
+      const incomingSection = document.getElementById('friends-incoming');
+      const incomingList = document.getElementById('friends-incoming-list');
+      incomingList.innerHTML = '';
+      if (data.incoming.length > 0) {
+        incomingSection.classList.remove('hidden');
+        for (const req of data.incoming) {
+          const card = document.createElement('div');
+          card.className = 'friend-card';
+          if (req.avatar) {
+            const img = document.createElement('img');
+            img.className = 'avatar';
+            img.src = req.avatar;
+            img.alt = '';
+            card.appendChild(img);
+          }
+          const info = document.createElement('div');
+          info.className = 'friend-card-info';
+          const nameEl = document.createElement('span');
+          nameEl.className = 'friend-card-name';
+          nameEl.textContent = req.name;
+          const emailEl = document.createElement('span');
+          emailEl.className = 'friend-card-email';
+          emailEl.textContent = req.email;
+          info.append(nameEl, emailEl);
+          card.appendChild(info);
+
+          const actions = document.createElement('div');
+          actions.className = 'friend-card-actions';
+          const acceptBtn = document.createElement('button');
+          acceptBtn.className = 'friend-accept-btn';
+          acceptBtn.textContent = 'Accept';
+          acceptBtn.addEventListener('click', () => acceptFriendRequest(req.id));
+          const declineBtn = document.createElement('button');
+          declineBtn.className = 'friend-remove-btn';
+          declineBtn.textContent = 'Decline';
+          declineBtn.addEventListener('click', () => removeFriend(req.id));
+          actions.append(acceptBtn, declineBtn);
+          card.appendChild(actions);
+          incomingList.appendChild(card);
+        }
+      } else {
+        incomingSection.classList.add('hidden');
+      }
+
+      const invitesSection = document.getElementById('friends-invites');
+      const invitesList = document.getElementById('friends-invites-list');
+      invitesList.innerHTML = '';
+      if (data.pendingInvites.length > 0) {
+        invitesSection.classList.remove('hidden');
+        for (const inv of data.pendingInvites) {
+          const card = document.createElement('div');
+          card.className = 'friend-invite-card';
+          const emailSpan = document.createElement('span');
+          emailSpan.textContent = inv.email;
+          card.appendChild(emailSpan);
+          invitesList.appendChild(card);
+        }
+      } else {
+        invitesSection.classList.add('hidden');
+      }
+
+      updateEmergencyButton();
+    } catch (e) { /* ignore */ }
+  }
+
+  async function addFriend() {
+    const input = document.getElementById('friend-email-input');
+    const email = input.value.trim();
+    if (!email) return;
+
+    const errEl = document.getElementById('friend-error');
+    errEl.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/friends/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Failed to add friend';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      input.value = '';
+      showToast(data.message);
+      loadFriends();
+    } catch (e) {
+      errEl.textContent = 'Network error';
+      errEl.classList.remove('hidden');
+    }
+  }
+
+  async function acceptFriendRequest(id) {
+    try {
+      await fetch(`/api/friends/accept/${id}`, { method: 'POST' });
+      loadFriends();
+    } catch (e) { /* ignore */ }
+  }
+
+  async function removeFriend(id) {
+    if (!confirm('Remove this friend?')) return;
+    try {
+      await fetch(`/api/friends/${id}`, { method: 'DELETE' });
+      loadFriends();
+    } catch (e) { /* ignore */ }
+  }
+
+  function updateEmergencyButton() {
+    const btn = document.getElementById('btn-emergency');
+    if (hasFriends && currentUser) {
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+
+  async function sendEmergency() {
+    if (!confirm('Send an EMERGENCY alert with your current location to ALL your hiking friends?')) return;
+
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not available.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-emergency');
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Getting location...';
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        btn.querySelector('span').textContent = 'Sending alerts...';
+        try {
+          const res = await fetch('/api/friends/emergency', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            showToast(data.message);
+          } else {
+            alert(data.error || 'Failed to send alerts');
+          }
+        } catch (e) {
+          alert('Network error — could not send emergency alert');
+        }
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Emergency — Alert Friends';
+      },
+      (err) => {
+        alert('Could not get your location: ' + err.message);
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Emergency — Alert Friends';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  document.getElementById('btn-add-friend').addEventListener('click', addFriend);
+  document.getElementById('friend-email-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addFriend();
+  });
+  document.getElementById('btn-emergency').addEventListener('click', sendEmergency);
 
   // ── File upload ────────────────────────────────────────────────────────
   const dropZone   = document.getElementById('drop-zone');

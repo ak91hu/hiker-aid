@@ -61,6 +61,13 @@
 - **Re-analyze** — click any saved activity to view full analysis with current settings
 - **Delete** — remove activities with confirmation
 
+### Hiking Friends & Emergency Alerts (requires Google sign-in)
+- **Add friends by email** — if registered, sends a friend request; if not, sends an invite email
+- **Auto-connect on signup** — when an invited person registers, the friendship is created automatically
+- **Friend requests** — accept or decline incoming friend requests
+- **Emergency button** — visible during live GPS tracking when you have friends; sends your current GPS coordinates to all friends via email
+- **Emergency email** — includes latitude, longitude, and a direct Google Maps link
+
 ### PWA / Offline
 - **Installable** — add to home screen on Android/iOS/desktop
 - **Works offline** — service worker caches app shell and map tiles
@@ -87,6 +94,7 @@
 - Maven 3.8+
 - Google OAuth2 credentials ([setup instructions below](#google-oauth-setup))
 - Gemini API key ([get one free](https://aistudio.google.com/apikey))
+- SMTP credentials for friend invites and emergency alerts (e.g., Gmail App Password)
 
 ### Build and Run
 
@@ -184,6 +192,26 @@ Delete a saved activity. Requires authentication + ownership.
 
 Aggregated stats for logged-in user: total hikes, km, elevation, calories, personal records. Requires authentication.
 
+### `GET /api/friends`
+
+List all friends (accepted), incoming friend requests (pending), and email invites. Requires authentication.
+
+### `POST /api/friends/add`
+
+Add a friend by email. If the email belongs to a registered user, creates a pending friend request. If not registered, sends an invite email. JSON body: `{"email": "..."}`. Requires authentication.
+
+### `POST /api/friends/accept/{id}`
+
+Accept a pending friend request. Requires authentication + must be the addressee.
+
+### `DELETE /api/friends/{id}`
+
+Remove a friendship. Requires authentication + must be a participant.
+
+### `POST /api/friends/emergency`
+
+Send emergency alert to all accepted friends. JSON body: `{"latitude": ..., "longitude": ...}`. Sends an email to each friend with coordinates and a Google Maps link. Requires authentication.
+
 ### `POST /api/ai-analysis`
 
 AI route coaching via Gemini 2.5 Flash. Send `{name, stats, safety}` JSON. Returns `{available, analysis}`.
@@ -213,12 +241,15 @@ src/main/java/com/hikerAid/
     ActivityController.java          CRUD /api/activities
     AdminController.java             Admin panel page + /api/admin/* endpoints
     AiController.java                POST /api/ai-analysis + GET /api/ai-tip
+    FriendController.java            Friends, invites, emergency /api/friends/*
     UserController.java              GET /api/user + /api/user/stats
     HomeController.java              GET / (Thymeleaf page)
     IconController.java              PWA icon fallback (SVG)
   entity/
     UserEntity.java                  JPA user (Google ID, email, name, avatar, admin)
     ActivityEntity.java              JPA activity (GPX data + all stats)
+    FriendshipEntity.java            Friendship (requester, addressee, PENDING/ACCEPTED)
+    FriendInviteEntity.java          Email invite for non-registered users
   model/
     AnalysisResult.java              API response record (stats + safety)
     RouteStats.java                  Route statistics record
@@ -228,13 +259,16 @@ src/main/java/com/hikerAid/
     ElevationPoint.java              Elevation profile point
     WaypointData.java                GPX waypoint
   repository/
-    UserRepository.java              findByGoogleId
+    UserRepository.java              findByGoogleId, findByEmailIgnoreCase
     ActivityRepository.java          findByUserId, countByUserId, deleteAllByUserId
+    FriendshipRepository.java        findAllByUserAndStatus, findPendingForUser
+    FriendInviteRepository.java      findByInviteeEmailIgnoreCase
   service/
     GpxParserService.java            XXE-safe DOM GPX parser
     RouteAnalysisService.java        Tobler, safety, difficulty, calories, deadband
     GeminiService.java               Gemini 2.5 Flash API client
-    CustomOAuth2UserService.java     Google login -> user sync + admin flag
+    CustomOAuth2UserService.java     Google login -> user sync + admin flag + invite conversion
+    EmailService.java                SMTP email for friend invites + emergency alerts
 
 src/main/resources/
   application.properties             Server, H2 DB, OAuth, Gemini config
@@ -317,6 +351,8 @@ Accuracy: ~10-15 minutes. The 30-minute safety buffer compensates for this uncer
 | Credential isolation | OAuth secrets from environment variables only |
 | Activity limits | 15 MB GPX data cap, 500 activities per user |
 | CSRF | API exempt (mitigated by SameSite=Lax session cookies) |
+| Friend ownership | Friendship endpoints verify user is a participant |
+| Emergency rate limit | Requires accepted friends; coordinate validation |
 | Error handling | Generic messages; no stack traces leaked to client |
 | H2 console | Disabled |
 | Gemini API key | Server-side only; never sent to browser |
@@ -365,6 +401,10 @@ These thresholds are defined in both `map.js` and `elevation.js` and must be kep
 | `spring.jpa.hibernate.ddl-auto` | update | Auto-create/update tables |
 | `hikerAid.gemini-api-key` | `${GEMINI_API_KEY}` | Gemini API key for AI features |
 | `hikerAid.admin-email` | `${ADMIN_EMAIL}` | Email for admin access |
+| `spring.mail.host` | `smtp.gmail.com` | SMTP server for email |
+| `spring.mail.port` | `587` | SMTP port |
+| `spring.mail.username` | `${MAIL_USERNAME}` | SMTP username (email) |
+| `spring.mail.password` | `${MAIL_PASSWORD}` | SMTP password (app password) |
 
 ---
 

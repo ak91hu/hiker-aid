@@ -368,6 +368,126 @@ html, body {
 .user-stat:nth-child(4) .user-stat-val { color: var(--c-danger); }
 .user-stat-lbl { font-size: 0.6rem; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* ─── FRIENDS SECTION ──────────────────────────────────────────────────── */
+.friends-section {
+  width: 100%;
+  max-width: 480px;
+}
+.friends-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-primary-lt);
+  margin-bottom: 10px;
+}
+.friends-sub-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  margin: 8px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.friends-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.friend-email-input {
+  flex: 1;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  color: var(--c-text);
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-family: inherit;
+}
+.friend-email-input::placeholder { color: var(--c-text-muted); }
+.friend-add-btn {
+  background: var(--c-primary);
+  border: 1px solid var(--c-primary-lt);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background var(--trans);
+  white-space: nowrap;
+}
+.friend-add-btn:hover { background: #358c5a; }
+.friends-list { display: flex; flex-direction: column; gap: 6px; }
+.friend-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.friend-card .avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.friend-card-info { flex: 1; min-width: 0; }
+.friend-card-name { font-weight: 600; font-size: 0.85rem; color: var(--c-text); display: block; }
+.friend-card-email { font-size: 0.72rem; color: var(--c-text-muted); display: block; overflow: hidden; text-overflow: ellipsis; }
+.friend-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.friend-accept-btn {
+  background: var(--c-primary);
+  border: 1px solid var(--c-primary-lt);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.friend-accept-btn:hover { background: #358c5a; }
+.friend-remove-btn {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  color: var(--c-text-muted);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.friend-remove-btn:hover { background: rgba(231,111,81,0.2); color: var(--c-danger); border-color: var(--c-danger); }
+.friend-invite-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--c-text-muted);
+}
+
+/* ─── EMERGENCY BUTTON ─────────────────────────────────────────────────── */
+.emergency-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  background: rgba(231,111,81,0.2);
+  border: 2px solid var(--c-danger);
+  border-radius: 10px;
+  color: var(--c-danger);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 12px;
+  cursor: pointer;
+  transition: background var(--trans);
+  animation: pulse-border 2s infinite;
+}
+.emergency-btn:hover { background: rgba(231,111,81,0.35); }
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(231,111,81,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(231,111,81,0); }
+}
+
 /* ─── ACTIVITIES ───────────────────────────────────────────────────────── */
 .activities-section {
   width: 100%;

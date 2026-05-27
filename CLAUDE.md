@@ -15,7 +15,7 @@ mvn clean package
 java -jar target/hikerAid-1.0.0.jar
 ```
 
-Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`.
+Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
 
 Health check: `curl http://localhost:8080/api/health`
 
@@ -32,9 +32,13 @@ Health check: `curl http://localhost:8080/api/health`
 | `controller/ActivityController.java` | CRUD `/api/activities` — user activity persistence |
 | `controller/AdminController.java` | Admin dashboard, AI tester, env status, user/activity management |
 | `controller/AiController.java` | `POST /api/ai-analysis`, `GET /api/ai-tip` |
+| `controller/FriendController.java` | Friend management + emergency alerts: `/api/friends/**` |
 | `controller/UserController.java` | `GET /api/user`, `GET /api/user/stats` |
 | `entity/UserEntity.java` | JPA user (Google ID, email, name, avatar, admin flag) |
 | `entity/ActivityEntity.java` | JPA activity (GPX data + all stats, linked to user) |
+| `entity/FriendshipEntity.java` | JPA friendship (requester, addressee, status PENDING/ACCEPTED) |
+| `entity/FriendInviteEntity.java` | JPA invite for non-registered email addresses |
+| `service/EmailService.java` | Sends friend invite emails and emergency alerts via SMTP |
 | `static/js/app.js` | Upload, recording, auth, activities, offline sync, AI |
 | `static/js/map.js` | Leaflet map, gradient segments, safety markers, GPS tracking |
 | `static/js/elevation.js` | Chart.js elevation profile with gradient coloring |
@@ -48,6 +52,8 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 |---|---|
 | `users` | id, google_id (unique), email, name, avatar_url, admin, created_at |
 | `activities` | id, user_id (FK), name, gpx_data (CLOB), all stats fields, recorded_at |
+| `friendships` | id, requester_id (FK), addressee_id (FK), status (PENDING/ACCEPTED), created_at |
+| `friend_invites` | id, inviter_id (FK), invitee_email, created_at |
 
 ## API endpoints
 
@@ -60,6 +66,11 @@ H2 file-based at `./data/hikeraid`. Tables auto-created via `ddl-auto=update`.
 | GET | `/api/ai-tip` | public | Seasonal hiking tip from Gemini |
 | POST | `/api/ai-analysis` | public | Route performance analysis from Gemini |
 | GET/POST/DELETE | `/api/activities/**` | user | Activity CRUD (max 500/user, 15MB GPX) |
+| GET | `/api/friends` | user | List friends, pending requests, invites |
+| POST | `/api/friends/add` | user | Add friend by email (or send invite) |
+| POST | `/api/friends/accept/{id}` | user | Accept pending friend request |
+| DELETE | `/api/friends/{id}` | user | Remove friend |
+| POST | `/api/friends/emergency` | user | Send emergency alert with coordinates to all friends |
 | GET | `/admin` | admin | Admin panel page |
 | GET | `/api/admin/stats` | admin | System stats |
 | GET | `/api/admin/users` | admin | All users list |

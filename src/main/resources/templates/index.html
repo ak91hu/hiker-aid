@@ -132,6 +132,26 @@
         </div>
     </div>
 
+    <div id="friends-section" class="friends-section hidden">
+        <h2 class="friends-title">Hiking Friends</h2>
+        <div class="friends-add-row">
+            <input type="email" id="friend-email-input" class="friend-email-input" placeholder="Friend's email address">
+            <button id="btn-add-friend" class="friend-add-btn">Add</button>
+        </div>
+        <div id="friend-error" class="error-banner hidden" style="margin-bottom:8px"></div>
+        <div id="friends-incoming" class="friends-incoming hidden">
+            <h3 class="friends-sub-title">Pending Requests</h3>
+            <div id="friends-incoming-list" class="friends-list"></div>
+        </div>
+        <div id="friends-list-container" class="friends-list-container">
+            <div id="friends-list" class="friends-list"></div>
+        </div>
+        <div id="friends-invites" class="friends-invites hidden">
+            <h3 class="friends-sub-title">Invited (not yet registered)</h3>
+            <div id="friends-invites-list" class="friends-list"></div>
+        </div>
+    </div>
+
     <div id="activities-section" class="activities-section hidden">
         <h2 class="activities-title">My Activities</h2>
         <div id="activities-list" class="activities-list"></div>
@@ -284,6 +304,13 @@
             <div class="t-stat"><span id="t-remaining-time">—</span><span>Est. left</span></div>
             <div class="t-stat"><span id="t-current-ele">—</span><span>Elevation</span></div>
         </div>
+        <button id="btn-emergency" class="emergency-btn hidden" title="Send emergency alert to friends">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Emergency — Alert Friends</span>
+        </button>
     </div>
 
     <!-- Elevation profile panel -->
