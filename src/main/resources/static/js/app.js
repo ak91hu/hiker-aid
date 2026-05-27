@@ -10,6 +10,7 @@
   let gpsWatchId = null;
   let isTracking = false;
   let elevationCollapsed = false;
+  let lastGpsPosition = null;
 
   // Recording state
   let isRecording = false;
@@ -521,39 +522,46 @@
 
     const btn = document.getElementById('btn-emergency');
     btn.disabled = true;
-    btn.querySelector('span').textContent = 'Getting location...';
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        btn.querySelector('span').textContent = 'Sending alerts...';
-        try {
-          const res = await fetch('/api/friends/emergency', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude
-            })
-          });
-          const data = await res.json();
-          if (res.ok) {
-            showToast(data.message);
-          } else {
-            alert(data.error || 'Failed to send alerts');
-          }
-        } catch (e) {
-          alert('Network error — could not send emergency alert');
+    async function doSend(pos) {
+      btn.querySelector('span').textContent = 'Sending alerts...';
+      try {
+        const res = await fetch('/api/friends/emergency', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 0
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message);
+        } else {
+          alert(data.error || 'Failed to send alerts');
         }
-        btn.disabled = false;
-        btn.querySelector('span').textContent = 'Emergency — Alert Friends';
-      },
-      (err) => {
-        alert('Could not get your location: ' + err.message);
-        btn.disabled = false;
-        btn.querySelector('span').textContent = 'Emergency — Alert Friends';
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+      } catch (e) {
+        alert('Network error - could not send emergency alert');
+      }
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+    }
+
+    if (lastGpsPosition && (Date.now() - lastGpsPosition.timestamp) < 30000) {
+      await doSend(lastGpsPosition);
+    } else {
+      btn.querySelector('span').textContent = 'Getting location...';
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => { await doSend(pos); },
+        (err) => {
+          alert('Could not get your location: ' + err.message);
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+      );
+    }
   }
 
   document.getElementById('btn-add-friend').addEventListener('click', addFriend);
@@ -804,6 +812,7 @@
   }
 
   function onRecordPosition(pos) {
+    lastGpsPosition = pos;
     const pt = {
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
@@ -1134,9 +1143,12 @@
     document.getElementById('tracking-panel').classList.remove('hidden');
 
     gpsWatchId = navigator.geolocation.watchPosition(
-      pos => onGpsUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.altitude),
+      pos => {
+        lastGpsPosition = pos;
+        onGpsUpdate(pos.coords.latitude, pos.coords.longitude, pos.coords.altitude);
+      },
       err => { console.warn('GPS error:', err.message); },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
   }
 
@@ -1167,6 +1179,7 @@
     if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
     isTracking = false;
+    lastGpsPosition = null;
     HikerMap.clearGpsMarker();
     document.getElementById('btn-track').classList.remove('active');
     document.getElementById('tracking-panel').classList.add('hidden');

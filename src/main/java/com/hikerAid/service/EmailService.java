@@ -59,32 +59,41 @@ public class EmailService {
                 + "difficulty scoring, and real-time GPS tracking. When friends are connected,\n"
                 + "the app can send your GPS coordinates in an emergency.\n\n"
                 + "How to connect:\n"
-                + "1. Go to HikerAid and sign in with Google\n"
-                + "2. The friendship with " + inviterName + " will be created automatically\n"
-                + "3. You'll appear in each other's emergency contact list\n\n"
+                + "1. Open https://hikeraid.onrender.com\n"
+                + "2. Sign in with Google\n"
+                + "3. The friendship with " + inviterName + " will be created automatically\n"
+                + "4. You'll appear in each other's emergency contact list\n\n"
                 + "No cost, no installation - it runs in your browser and works offline.\n\n"
                 + "Stay safe on the trails,\n"
-                + "The HikerAid Team";
+                + "The HikerAid Team\n"
+                + "https://hikeraid.onrender.com";
         sendViaResend(toEmail, subject, body);
     }
 
-    public void sendEmergencyAlert(String toEmail, String hikerName, double latitude, double longitude) throws Exception {
-        String mapsUrl = "https://www.google.com/maps?q=" + latitude + "," + longitude;
+    public void sendEmergencyAlert(String toEmail, String hikerName,
+                                   double latitude, double longitude, double accuracyM) throws Exception {
+        String lat = String.format("%.7f", latitude);
+        String lon = String.format("%.7f", longitude);
+        String mapsUrl = "https://www.google.com/maps?q=" + lat + "," + lon;
+        String accuracy = accuracyM > 0 ? String.format("%.0f", accuracyM) + " meters" : "unknown";
         String subject = "EMERGENCY - " + hikerName + " needs help on the trail!";
         String body = "--- EMERGENCY ALERT ---\n\n"
                 + hikerName + " has triggered an emergency alert from HikerAid.\n"
                 + "They may be injured, lost, or in danger and need immediate help.\n\n"
                 + "LOCATION\n"
-                + "  Latitude:  " + String.format("%.6f", latitude) + "\n"
-                + "  Longitude: " + String.format("%.6f", longitude) + "\n\n"
-                + "  Open in Google Maps:\n"
-                + "  " + mapsUrl + "\n\n"
+                + "  Latitude:  " + lat + "\n"
+                + "  Longitude: " + lon + "\n"
+                + "  Accuracy:  " + accuracy + "\n\n"
+                + "  >> Open in Google Maps:\n"
+                + "  >> " + mapsUrl + "\n\n"
                 + "WHAT TO DO\n"
                 + "  1. Try calling " + hikerName + " directly\n"
                 + "  2. If no answer, call local emergency services:\n"
                 + "     Europe: 112  |  US/Canada: 911  |  UK: 999\n"
-                + "  3. Share the coordinates above with rescuers\n\n"
+                + "  3. Share the coordinates above with rescuers\n"
+                + "  4. Open the map link above to see the exact location\n\n"
                 + "This alert was sent automatically by HikerAid.\n"
+                + "https://hikeraid.onrender.com\n"
                 + "If you believe this was sent in error, please still verify.";
         sendViaResend(toEmail, subject, body);
     }
@@ -94,7 +103,8 @@ public class EmailService {
         String body = "This is a test email from the HikerAid admin panel.\n\n"
                 + "If you're reading this, the email system is working correctly.\n\n"
                 + "Sent at: " + java.time.Instant.now() + "\n"
-                + "Provider: Resend.com";
+                + "Provider: Resend.com\n\n"
+                + "https://hikeraid.onrender.com";
         sendViaResend(toEmail, subject, body);
     }
 

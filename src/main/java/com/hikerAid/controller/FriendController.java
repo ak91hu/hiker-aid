@@ -186,6 +186,7 @@ public class FriendController {
 
         Double latitude = toDouble(body.get("latitude"));
         Double longitude = toDouble(body.get("longitude"));
+        double accuracy = toDouble(body.get("accuracy")) != null ? toDouble(body.get("accuracy")) : 0;
         if (latitude == null || longitude == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "Coordinates are required"));
         }
@@ -205,7 +206,7 @@ public class FriendController {
         for (FriendshipEntity f : accepted) {
             UserEntity friend = f.getRequester().getId().equals(user.getId()) ? f.getAddressee() : f.getRequester();
             try {
-                emailService.sendEmergencyAlert(friend.getEmail(), user.getName(), latitude, longitude);
+                emailService.sendEmergencyAlert(friend.getEmail(), user.getName(), latitude, longitude, accuracy);
                 sent++;
             } catch (Exception e) {
                 log.error("Emergency email failed for {}: {}", friend.getEmail(), e.getMessage());

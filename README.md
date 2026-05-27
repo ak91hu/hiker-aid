@@ -62,11 +62,12 @@
 - **Delete** — remove activities with confirmation
 
 ### Hiking Friends & Emergency Alerts (requires Google sign-in)
-- **Add friends by email** — if registered, sends a friend request; if not, sends an invite email
+- **Add friends by email** — if registered, sends a friend request; if not, sends an invite email via Resend.com with a direct link to the app
 - **Auto-connect on signup** — when an invited person registers, the friendship is created automatically
 - **Friend requests** — accept or decline incoming friend requests
 - **Emergency button** — visible during live GPS tracking when you have friends; sends your current GPS coordinates to all friends via email
-- **Emergency email** — includes latitude, longitude, and a direct Google Maps link
+- **Emergency email** — includes latitude (7 decimal places), longitude, GPS accuracy radius, and a direct Google Maps link
+- **Smart GPS** — uses live tracking position when available (no extra fix delay); falls back to fresh `getCurrentPosition` with `maximumAge: 0` when not tracking
 
 ### PWA / Offline
 - **Installable** — add to home screen on Android/iOS/desktop
@@ -94,7 +95,7 @@
 - Maven 3.8+
 - Google OAuth2 credentials ([setup instructions below](#google-oauth-setup))
 - Gemini API key ([get one free](https://aistudio.google.com/apikey))
-- SMTP credentials for friend invites and emergency alerts (e.g., Gmail App Password)
+- Resend.com API key ([free tier: 100 emails/day](https://resend.com)) for friend invites and emergency alerts
 
 ### Build and Run
 
@@ -268,7 +269,7 @@ src/main/java/com/hikerAid/
     RouteAnalysisService.java        Tobler, safety, difficulty, calories, deadband
     GeminiService.java               Gemini 2.5 Flash API client
     CustomOAuth2UserService.java     Google login -> user sync + admin flag + invite conversion
-    EmailService.java                SMTP email for friend invites + emergency alerts
+    EmailService.java                Resend.com API for friend invites + emergency alerts
 
 src/main/resources/
   application.properties             Server, H2 DB, OAuth, Gemini config
@@ -352,7 +353,7 @@ Accuracy: ~10-15 minutes. The 30-minute safety buffer compensates for this uncer
 | Activity limits | 15 MB GPX data cap, 500 activities per user |
 | CSRF | API exempt (mitigated by SameSite=Lax session cookies) |
 | Friend ownership | Friendship endpoints verify user is a participant |
-| Emergency rate limit | Requires accepted friends; coordinate validation |
+| Emergency rate limit | Requires accepted friends; coordinate validation; GPS accuracy reported |
 | Error handling | Generic messages; no stack traces leaked to client |
 | H2 console | Disabled |
 | Gemini API key | Server-side only; never sent to browser |
@@ -401,10 +402,8 @@ These thresholds are defined in both `map.js` and `elevation.js` and must be kep
 | `spring.jpa.hibernate.ddl-auto` | update | Auto-create/update tables |
 | `hikerAid.gemini-api-key` | `${GEMINI_API_KEY}` | Gemini API key for AI features |
 | `hikerAid.admin-email` | `${ADMIN_EMAIL}` | Email for admin access |
-| `spring.mail.host` | `smtp.gmail.com` | SMTP server for email |
-| `spring.mail.port` | `587` | SMTP port |
-| `spring.mail.username` | `${MAIL_USERNAME}` | SMTP username (email) |
-| `spring.mail.password` | `${MAIL_PASSWORD}` | SMTP password (app password) |
+| `hikerAid.resend-api-key` | `${RESEND_API_KEY}` | Resend.com API key for email |
+| `hikerAid.resend-from` | `HikerAid <onboarding@resend.dev>` | Email sender address |
 
 ---
 
