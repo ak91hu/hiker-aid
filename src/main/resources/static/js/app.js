@@ -171,6 +171,7 @@
           badge.addEventListener('click', () => { window.location.href = '/admin'; });
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
+        document.getElementById('user-content').classList.remove('hidden');
         loadActivities();
         loadUserStats();
         loadFriends();
@@ -186,15 +187,13 @@
       const res = await fetch('/api/activities');
       if (!res.ok) return;
       const activities = await res.json();
-      const section = document.getElementById('activities-section');
       const list = document.getElementById('activities-list');
 
       if (activities.length === 0) {
-        section.classList.add('hidden');
+        list.innerHTML = '<p class="uc-empty">No activities yet. Upload or record a hike to get started.</p>';
         return;
       }
 
-      section.classList.remove('hidden');
       list.innerHTML = '';
       for (const a of activities) {
         const card = document.createElement('div');
@@ -356,9 +355,6 @@
       const res = await fetch('/api/friends');
       if (!res.ok) return;
       const data = await res.json();
-
-      const section = document.getElementById('friends-section');
-      section.classList.remove('hidden');
 
       const listEl = document.getElementById('friends-list');
       listEl.innerHTML = '';
@@ -565,6 +561,16 @@
     if (e.key === 'Enter') addFriend();
   });
   document.getElementById('btn-emergency').addEventListener('click', sendEmergency);
+
+  // ── User content tabs ─────────────────────────────────────────────────
+  document.querySelectorAll('.uc-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.uc-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.uc-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('uc-' + tab.dataset.uc).classList.add('active');
+    });
+  });
 
   // ── File upload ────────────────────────────────────────────────────────
   const dropZone   = document.getElementById('drop-zone');

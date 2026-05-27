@@ -1,9 +1,11 @@
 package com.hikerAid.service;
 
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.JsonNode;
@@ -18,6 +20,7 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final String TESTMAIL_API = "https://api.testmail.app/api/json";
+    private static final String MX_HOST = "mx.testmail.app";
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -37,10 +40,6 @@ public class EmailService {
         return namespace;
     }
 
-    public String buildAddress(String tag) {
-        return tag + "." + namespace + "@inbox.testmail.app";
-    }
-
     public void sendFriendInvite(String toEmail, String inviterName) throws Exception {
         String tag = "invite-" + sanitizeTag(toEmail);
         String subject = "HikerAid — " + inviterName + " wants to be your hiking buddy!";
@@ -48,7 +47,7 @@ public class EmailService {
                 + "Sign up with Google at HikerAid and the friendship will be created automatically.\n\n"
                 + "Stay safe on the trails!\n\n"
                 + "(Original recipient: " + toEmail + ")";
-        sendViaTestmail(tag, subject, body, toEmail);
+        sendToTestmail(tag, subject, body);
     }
 
     public void sendEmergencyAlert(String toEmail, String hikerName, double latitude, double longitude) throws Exception {
@@ -64,57 +63,47 @@ public class EmailService {
                 + "Please try to contact them or alert local emergency services.\n"
                 + "If you believe this is a real emergency, call your local emergency number (112 / 911 / 999).\n\n"
                 + "(Original recipient: " + toEmail + ")";
-        sendViaTestmail(tag, subject, body, toEmail);
+        sendToTestmail(tag, subject, body);
     }
 
     public void sendTestEmail() throws Exception {
         String tag = "admin-test-" + System.currentTimeMillis();
-        sendViaTestmail(tag, "HikerAid Email Test",
-                "This is a test email from the HikerAid admin panel.\nTimestamp: " + java.time.Instant.now(),
-                "admin-test");
+        sendToTestmail(tag, "HikerAid Email Test",
+                "Test email from the HikerAid admin panel.\nTimestamp: " + java.time.Instant.now());
     }
 
-    private void sendViaTestmail(String tag, String subject, String body, String originalRecipient) throws Exception {
+    private void sendToTestmail(String tag, String subject, String body) throws Exception {
         if (!isConfigured()) {
-            throw new IllegalStateException("Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE env vars");
+            throw new IllegalStateException("Testmail.app not configured — set TESTMAIL_NAMESPACE env var");
         }
 
-        String toAddress = buildAddress(tag);
-        log.info("Sending email via testmail.app: to={}, subject={}", toAddress, subject);
+        String toAddress = tag + "." + namespace + "@inbox.testmail.app";
+        log.info("Delivering email to testmail.app: to={}, subject={}", toAddress, subject);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + apiKey);
+        Properties props = new Properties();
+        props.put("mail.smtp.host", MX_HOST);
+        props.put("mail.smtp.port", "25");
+        props.put("mail.smtp.auth", "false");
+        props.put("mail.smtp.starttls.enable", "false");
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
 
-        Map<String, Object> payload = Map.of(
-            "api_key", apiKey,
-            "namespace", namespace,
-            "tag", tag,
-            "subject", subject,
-            "text", body,
-            "to", originalRecipient,
-            "from", "hikeraid@testmail.app"
-        );
+        Session session = Session.getInstance(props);
+        MimeMessage msg = new MimeMessage(session);
+        msg.setFrom(new InternetAddress("hikeraid@hikeraid.app", "HikerAid"));
+        msg.setRecipient(Message.RecipientType.TO, new InternetAddress(toAddress));
+        msg.setSubject(subject, "UTF-8");
+        msg.setText(body, "UTF-8");
+        msg.setSentDate(new java.util.Date());
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-
-        try {
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    TESTMAIL_API, entity, String.class);
-            if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Email delivered to testmail.app inbox: {}", toAddress);
-            } else {
-                throw new RuntimeException("Testmail API returned " + response.getStatusCode());
-            }
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            log.error("Testmail API error: {} — {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("Testmail API error: " + e.getStatusCode() + " — " + e.getResponseBodyAsString());
-        }
+        Transport.send(msg);
+        log.info("Email delivered to {}", toAddress);
     }
 
     public Map<String, Object> fetchInbox(String tag) {
         if (!isConfigured()) {
-            return Map.of("error", "Testmail.app not configured — set TESTMAIL_API_KEY and TESTMAIL_NAMESPACE");
+            return Map.of("error", "Testmail.app not configured — set TESTMAIL_NAMESPACE env var");
         }
         try {
             String url = TESTMAIL_API + "?apikey=" + enc(apiKey)

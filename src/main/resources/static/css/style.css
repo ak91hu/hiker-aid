@@ -410,17 +410,36 @@ html, body {
 .record-btn:hover { background: rgba(231,111,81,0.25); }
 
 
-/* ─── FRIENDS SECTION ──────────────────────────────────────────────────── */
-.friends-section {
+/* ─── USER CONTENT (tabbed: Activities / Friends) ─────────────────────── */
+.user-content {
   width: 100%;
   max-width: 480px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
-.friends-title {
-  font-size: 0.95rem;
+.uc-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--c-border);
+}
+.uc-tab {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--c-primary-lt);
-  margin-bottom: 10px;
+  color: var(--c-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--trans), background var(--trans);
+  text-align: center;
 }
+.uc-tab:hover { color: var(--c-text); background: rgba(116,198,157,0.06); }
+.uc-tab.active { color: var(--c-primary-lt); background: rgba(116,198,157,0.1); box-shadow: inset 0 -2px 0 var(--c-primary-lt); }
+.uc-panel { display: none; padding: 14px; }
+.uc-panel.active { display: block; }
+.uc-empty { color: var(--c-text-muted); font-size: 0.82rem; font-style: italic; text-align: center; padding: 20px 0; }
 .friends-sub-title {
   font-size: 0.78rem;
   font-weight: 600;
@@ -531,16 +550,6 @@ html, body {
 }
 
 /* ─── ACTIVITIES ───────────────────────────────────────────────────────── */
-.activities-section {
-  width: 100%;
-  max-width: 480px;
-}
-.activities-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--c-primary-lt);
-  margin-bottom: 10px;
-}
 .activities-list { display: flex; flex-direction: column; gap: 8px; }
 .activity-card {
   background: var(--c-surface);
