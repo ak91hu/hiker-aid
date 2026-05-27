@@ -32,7 +32,7 @@ public class SecurityConfig {
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))
                 .defaultSuccessUrl("/", true))
             .logout(logout -> logout
-                .logoutUrl("/api/logout")
+                .logoutRequestMatcher(request -> "/api/logout".equals(request.getServletPath()))
                 .logoutSuccessUrl("/"));
         return http.build();
     }
