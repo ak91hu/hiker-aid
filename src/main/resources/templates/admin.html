@@ -211,11 +211,11 @@
         document.getElementById('ai-test-latency').textContent='';document.getElementById('ai-test-status').textContent='';
         try{const res=await fetch('/api/admin/test-ai',{method:'POST'});const data=await res.json();
             document.getElementById('ai-test-response').textContent=data.response||data.error||'No response';
-            document.getElementById('ai-test-latency').textContent=data.latencyMs?`&#9201; ${data.latencyMs}ms`:'';
+            document.getElementById('ai-test-latency').textContent=data.latencyMs?`⏱ ${data.latencyMs}ms`:'';
             const statusEl=document.getElementById('ai-test-status');
-            statusEl.textContent=data.success?'&#10003; Connected':'&#10007; Failed';
+            statusEl.textContent=data.success?'✓ Connected':'✗ Failed';
             statusEl.className=data.success?'status-ok':'status-fail';
-        }catch(e){document.getElementById('ai-test-response').textContent='Network error: '+e.message;document.getElementById('ai-test-status').textContent='&#10007; Error';document.getElementById('ai-test-status').className='status-fail';}
+        }catch(e){document.getElementById('ai-test-response').textContent='Network error: '+e.message;document.getElementById('ai-test-status').textContent='✗ Error';document.getElementById('ai-test-status').className='status-fail';}
         btn.disabled=false;btn.innerHTML='&#9889; Run Connection Test';
     });
 
