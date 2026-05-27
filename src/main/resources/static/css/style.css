@@ -205,7 +205,6 @@ html, body {
   padding: 16px;
   box-shadow: var(--shadow), 0 0 0 1px rgba(116,198,157,0.08);
   position: relative;
-  overflow: hidden;
 }
 .user-panel::before {
   content: '';
@@ -217,8 +216,9 @@ html, body {
 .up-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 .up-avatar {
   width: 48px;
@@ -248,8 +248,9 @@ html, body {
 .up-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 .up-admin-badge {
   display: inline-flex;
@@ -284,7 +285,8 @@ html, body {
 .up-stats-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  gap: 8px;
+  margin-top: 4px;
 }
 .up-stat-card {
   display: flex;
