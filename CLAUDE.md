@@ -20,7 +20,7 @@ java -jar target/hikerAid-1.0.0.jar
 Required env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 Optional: `GEMINI_API_KEY`, `ADMIN_EMAIL`, `RESEND_API_KEY`, `RESEND_FROM`.
 
-Note: `RESEND_API_KEY` has a hardcoded default in `application.properties`. No env var needed unless rotating keys.
+Note: All API keys must be set via environment variables. No hardcoded defaults.
 
 Health check: `curl http://localhost:8080/api/health`
 
