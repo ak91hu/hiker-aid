@@ -10,5 +10,6 @@ public record AnalysisResult(
     List<double[]> gradientSegments,
     List<ElevationPoint> elevationProfile,
     List<WaypointData> waypoints,
-    SafetyAnalysis safety
+    SafetyAnalysis safety,
+    List<SplitData> splits
 ) {}

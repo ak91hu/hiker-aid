@@ -1,7 +1,7 @@
 /* HikerAid Service Worker — offline-first PWA */
 
-const CACHE_NAME = 'hikerAid-v16';
-const TILE_CACHE = 'hikerAid-tiles-v1';
+const CACHE_NAME = 'hikerAid-v18';
+const TILE_CACHE = 'hikerAid-tiles-v2';
 
 const APP_SHELL = [
   '/',
@@ -36,26 +36,60 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Background sync — when network returns, message clients to flush queue
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-activities') {
+    event.waitUntil(notifyClientsToSync());
+  }
+});
+
+async function notifyClientsToSync() {
+  const clients = await self.clients.matchAll({ type: 'window' });
+  for (const client of clients) {
+    client.postMessage({ type: 'SYNC_ACTIVITIES' });
+  }
+}
+
+// Allow page to message SW (e.g. tile pre-download)
+// Replies prefer event.ports[0] (MessageChannel) for one-shot delivery; fall back to event.source
+function reply(event, data) {
+  if (event.ports && event.ports[0]) event.ports[0].postMessage(data);
+  else event.source?.postMessage(data);
+}
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'CLEAR_TILE_CACHE') {
+    caches.delete(TILE_CACHE).then(() => reply(event, { type: 'TILE_CACHE_CLEARED' }));
+  } else if (event.data?.type === 'TILE_CACHE_SIZE') {
+    estimateTileCacheBytes().then(bytes => reply(event, { type: 'TILE_CACHE_SIZE_RESULT', bytes }));
+  }
+});
+
+async function estimateTileCacheBytes() {
+  try {
+    const cache = await caches.open(TILE_CACHE);
+    const keys = await cache.keys();
+    // Rough estimate: average tile ~20KB
+    return keys.length * 20 * 1024;
+  } catch { return 0; }
+}
+
 // Fetch strategy:
-//   - Map tiles: cache-first with background revalidation (stale-while-revalidate)
-//   - API calls: network-only (no point caching analysis results)
+//   - Map tiles: cache-first with background revalidation (stale-while-revalidate),
+//                normalized cache keys so subdomain rotation does not fragment cache
+//   - API calls: network-only
 //   - Everything else: cache-first, fall back to network
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET requests
   if (event.request.method !== 'GET') return;
-
-  // API calls — network only
   if (url.pathname.startsWith('/api/')) return;
 
-  // Map tiles — stale-while-revalidate
   if (isTileRequest(url)) {
-    event.respondWith(staleWhileRevalidate(TILE_CACHE, event.request));
+    event.respondWith(tileStrategy(event.request));
     return;
   }
 
-  // App shell & static assets — network first, fall back to cache when offline
   event.respondWith(networkFirst(CACHE_NAME, event.request));
 });
 
@@ -65,6 +99,24 @@ function isTileRequest(url) {
       || url.hostname.includes('arcgisonline.com')
       || url.hostname.includes('cartocdn.com')
       || url.hostname.includes('basemaps.cartocdn.com');
+}
+
+// Normalize subdomain rotation (a./b./c. -> z.) for consistent cache key
+function normalizeTileKey(url) {
+  return url.replace(/^(https?:\/\/)[abc]\./, '$1z.');
+}
+
+async function tileStrategy(request) {
+  const cache = await caches.open(TILE_CACHE);
+  const cacheKey = normalizeTileKey(request.url);
+  const cached = await cache.match(cacheKey);
+
+  const fetchPromise = fetch(request).then(response => {
+    if (response.ok) cache.put(cacheKey, response.clone());
+    return response;
+  }).catch(() => cached);
+
+  return cached || fetchPromise;
 }
 
 async function networkFirst(cacheName, request) {
@@ -79,14 +131,4 @@ async function networkFirst(cacheName, request) {
     const cached = await caches.match(request);
     return cached || new Response('Offline', { status: 503 });
   }
-}
-
-async function staleWhileRevalidate(cacheName, request) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const fetchPromise = fetch(request).then(response => {
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  }).catch(() => cached);
-  return cached || fetchPromise;
 }

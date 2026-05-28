@@ -20,21 +20,98 @@
   let recordWatchId = null;
   let recordPolyline = null;
   let recordInterval = null;
+  let recordSessionId = null;
+  let recordPhotoCount = 0;
 
   // ── Offline Queue (IndexedDB) ───────────────────────────────────────
   const DB_NAME = 'hikerAidOffline';
   const STORE_NAME = 'pendingActivities';
+  const PHOTO_STORE = 'photos';
 
   function openDB() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(STORE_NAME)) {
-          req.result.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      const req = indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = (e) => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains(PHOTO_STORE)) {
+          const store = db.createObjectStore(PHOTO_STORE, { keyPath: 'id', autoIncrement: true });
+          store.createIndex('activityId', 'activityId', { unique: false });
+          store.createIndex('sessionId', 'sessionId', { unique: false });
         }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function addPhoto(photo) {
+    const db = await openDB();
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    tx.objectStore(PHOTO_STORE).add(photo);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  }
+
+  async function getPhotosBySession(sessionId) {
+    const db = await openDB();
+    const tx = db.transaction(PHOTO_STORE, 'readonly');
+    const idx = tx.objectStore(PHOTO_STORE).index('sessionId');
+    const req = idx.getAll(sessionId);
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => { db.close(); resolve(req.result); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  }
+
+  async function getPhotosByActivity(activityId) {
+    const db = await openDB();
+    const tx = db.transaction(PHOTO_STORE, 'readonly');
+    const idx = tx.objectStore(PHOTO_STORE).index('activityId');
+    const req = idx.getAll(activityId);
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => { db.close(); resolve(req.result); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  }
+
+  async function deletePhotosBySession(sessionId) {
+    const db = await openDB();
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    const idx = tx.objectStore(PHOTO_STORE).index('sessionId');
+    const req = idx.openCursor(sessionId);
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (cursor) { cursor.delete(); cursor.continue(); }
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  }
+
+  async function linkSessionPhotosToActivity(sessionId, activityId) {
+    const db = await openDB();
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    const store = tx.objectStore(PHOTO_STORE);
+    const idx = store.index('sessionId');
+    const req = idx.openCursor(sessionId);
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (cursor) {
+          const v = cursor.value;
+          v.activityId = activityId;
+          cursor.update(v);
+          cursor.continue();
+        }
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
     });
   }
 
@@ -76,6 +153,15 @@
       req.onsuccess = () => { db.close(); resolve(req.result); };
       req.onerror = () => { db.close(); reject(req.error); };
     });
+  }
+
+  async function requestBackgroundSync() {
+    try {
+      const reg = await navigator.serviceWorker?.ready;
+      if (reg && 'sync' in reg) {
+        await reg.sync.register('sync-activities');
+      }
+    } catch (e) { /* not supported - rely on online event */ }
   }
 
   async function updateSyncBadge() {
@@ -130,10 +216,24 @@
 
   function showToast(msg) {
     const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2d1e;border:1px solid rgba(116,198,157,0.3);border-radius:10px;padding:10px 16px;font-size:0.8rem;color:#74C69D;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+    toast.className = 'app-toast';
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  // ── Theme toggle ──────────────────────────────────────────────────────
+  function applyTheme(theme) {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#f4f8f2' : '#1a2f1a');
+  }
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const next = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try { localStorage.setItem('hikerAid_theme', next); } catch (e) { /* ignore */ }
   }
 
   // ── DOM refs ──────────────────────────────────────────────────────────
@@ -183,17 +283,63 @@
   // ── Activities ─────────────────────────────────────────────────────────
   async function loadActivities() {
     try {
-      const res = await fetch('/api/activities');
-      if (!res.ok) return;
-      const activities = await res.json();
+      let activities = [];
+      try {
+        const res = await fetch('/api/activities');
+        if (res.ok) activities = await res.json();
+      } catch (e) { /* offline - rely on pending only */ }
+
+      let pending = [];
+      try { pending = await getAllPending(); } catch (e) { /* IndexedDB unavailable */ }
+
       const list = document.getElementById('activities-list');
 
-      if (activities.length === 0) {
+      if (activities.length === 0 && pending.length === 0) {
         list.innerHTML = '<p class="uc-empty">No activities yet. Upload or record a hike to get started.</p>';
         return;
       }
 
       list.innerHTML = '';
+
+      for (const p of pending) {
+        const card = document.createElement('div');
+        card.className = 'activity-card pending-card';
+        const mainRow = document.createElement('div');
+        mainRow.className = 'activity-main';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'activity-name';
+        nameEl.textContent = p.name || 'Pending activity';
+        const badge = document.createElement('span');
+        badge.className = 'pending-badge';
+        badge.textContent = navigator.onLine ? 'Will sync' : 'Offline - queued';
+        mainRow.append(nameEl, badge);
+
+        const statsRow = document.createElement('div');
+        statsRow.className = 'activity-stats-row';
+        for (const txt of [`${p.distanceKm || 0} km`, `${p.elevationGainM || 0}m gain`, p.difficulty || '']) {
+          if (!txt) continue;
+          const sp = document.createElement('span');
+          sp.textContent = txt;
+          statsRow.appendChild(sp);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'activity-actions';
+        const delBtn = document.createElement('button');
+        delBtn.className = 'activity-delete-btn';
+        delBtn.textContent = 'Discard';
+        delBtn.addEventListener('click', async () => {
+          if (!confirm('Discard this queued activity? It will not be saved.')) return;
+          await deletePending(p.id);
+          await updateSyncBadge();
+          loadActivities();
+        });
+        actions.appendChild(delBtn);
+
+        card.append(mainRow, statsRow, actions);
+        list.appendChild(card);
+      }
+
       for (const a of activities) {
         const card = document.createElement('div');
         card.className = 'activity-card';
@@ -262,11 +408,67 @@
 
       currentGpxText = activity.gpxData;
       routeData = data;
+      routeData._activityId = id;
       renderViewer(data);
       showScreen('viewer');
+      loadComparisons(id);
+      showPhotosForActivity(id, null);
     } catch (e) {
       showScreen('upload');
     }
+  }
+
+  async function loadComparisons(activityId) {
+    const card = document.getElementById('card-comparison');
+    card.classList.add('hidden');
+    try {
+      const res = await fetch(`/api/activities/${activityId}/comparisons`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // Bail if the user has switched to a different route since this fetch began
+      if (routeData?._activityId !== activityId) return;
+      if (!data.matchCount || data.matchCount === 0) return;
+
+      card.classList.remove('hidden');
+      const val = document.getElementById('stat-comparison');
+      card.classList.remove('safety-ok', 'safety-caution', 'safety-card');
+      card.classList.add('safety-card');
+
+      if (data.isPersonalBest) {
+        val.textContent = 'PR!';
+        card.classList.add('safety-ok');
+        card.title = `Personal best across ${data.matchCount} attempts on this route`;
+      } else {
+        const diff = (data.avgMinutes || 0) - (data.currentMinutes || 0);
+        const abs = Math.abs(Math.round(diff));
+        val.textContent = `${diff >= 0 ? '-' : '+'}${formatTime(abs)}`;
+        card.classList.add(diff >= 0 ? 'safety-ok' : 'safety-caution');
+        card.title = `vs your average across ${data.matchCount} prior attempts`;
+      }
+      renderComparisonMatches(data);
+    } catch (e) { /* ignore */ }
+  }
+
+  function renderComparisonMatches(data) {
+    const panel = document.getElementById('splits-panel');
+    panel.querySelectorAll('.comparisons-banner').forEach(el => el.remove());
+    const summary = document.getElementById('splits-summary');
+    const banner = document.createElement('div');
+    banner.className = 'comparisons-banner';
+    const txtStrong = document.createElement('strong');
+    if (data.isPersonalBest) {
+      banner.classList.add('comparisons-pr');
+      txtStrong.textContent = 'Personal Best! ';
+      banner.appendChild(txtStrong);
+      banner.appendChild(document.createTextNode(`Faster than all ${data.matchCount} of your prior attempts on this route.`));
+    } else {
+      const diff = (data.avgMinutes || 0) - (data.currentMinutes || 0);
+      const sign = diff >= 0 ? 'faster' : 'slower';
+      txtStrong.textContent = `${formatTime(Math.abs(Math.round(diff)))} ${sign}`;
+      banner.appendChild(txtStrong);
+      banner.appendChild(document.createTextNode(` than your average across ${data.matchCount} prior attempt${data.matchCount === 1 ? '' : 's'}.`));
+    }
+    summary.parentNode.insertBefore(banner, summary);
   }
 
   async function loadUserStats() {
@@ -313,6 +515,8 @@
     if (!navigator.onLine) {
       await addPending(activityData);
       await updateSyncBadge();
+      requestBackgroundSync();
+      loadActivities();
       saveBtn.textContent = 'Saved offline';
       saveBtn.disabled = true;
       setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
@@ -326,12 +530,19 @@
         body: JSON.stringify(activityData)
       });
       if (res.ok) {
+        const data = await res.json();
+        const sessionId = routeData?._sessionId;
+        if (sessionId && data.id) {
+          try { await linkSessionPhotosToActivity(sessionId, data.id); } catch (e) {}
+        }
         saveBtn.textContent = 'Saved';
         saveBtn.disabled = true;
         setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
       } else {
         await addPending(activityData);
         await updateSyncBadge();
+        requestBackgroundSync();
+        loadActivities();
         saveBtn.textContent = 'Saved offline';
         saveBtn.disabled = true;
         setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
@@ -339,6 +550,8 @@
     } catch (e) {
       await addPending(activityData);
       await updateSyncBadge();
+      requestBackgroundSync();
+      loadActivities();
       saveBtn.textContent = 'Saved offline';
       saveBtn.disabled = true;
       setTimeout(() => { saveBtn.innerHTML = saveBtn.dataset.originalHtml; saveBtn.disabled = false; }, 2000);
@@ -521,6 +734,39 @@
     }
   }
 
+  function buildEmergencyMessage(lat, lon, accuracy) {
+    const latS = lat.toFixed(6);
+    const lonS = lon.toFixed(6);
+    const accS = accuracy ? `+/-${Math.round(accuracy)}m` : '';
+    const mapsUrl = `https://maps.google.com/?q=${latS},${lonS}`;
+    return `EMERGENCY - I need help. My location: ${latS}, ${lonS} ${accS}. Map: ${mapsUrl}`;
+  }
+
+  function showEmergencyFallback(lat, lon, accuracy, reason) {
+    const msg = buildEmergencyMessage(lat, lon, accuracy);
+    const mapsUrl = `https://maps.google.com/?q=${lat.toFixed(6)},${lon.toFixed(6)}`;
+    document.getElementById('ef-sub').textContent = reason
+      || 'Server unreachable. Send your location via your phone\'s SMS app instead.';
+    document.getElementById('ef-coords').textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}` + (accuracy ? ` (accuracy +/-${Math.round(accuracy)}m)` : '');
+    document.getElementById('ef-sms').href = `sms:?body=${encodeURIComponent(msg)}`;
+    document.getElementById('ef-maps').href = mapsUrl;
+    const copyBtn = document.getElementById('ef-copy');
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(msg);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy emergency message', 2000);
+      } catch (e) {
+        copyBtn.textContent = 'Copy failed';
+      }
+    };
+    document.getElementById('emergency-fallback').classList.remove('hidden');
+  }
+
+  document.getElementById('ef-close').addEventListener('click', () => {
+    document.getElementById('emergency-fallback').classList.add('hidden');
+  });
+
   async function sendEmergency() {
     if (!confirm('Send an EMERGENCY alert with your current location to ALL your hiking friends?')) return;
 
@@ -534,24 +780,31 @@
 
     async function doSend(pos) {
       btn.querySelector('span').textContent = 'Sending alerts...';
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const acc = pos.coords.accuracy || 0;
+
+      if (!navigator.onLine) {
+        showEmergencyFallback(lat, lon, acc, 'You are offline. Send your location via SMS instead.');
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+        return;
+      }
+
       try {
         const res = await fetch('/api/friends/emergency', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy || 0
-          })
+          body: JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc })
         });
         const data = await res.json();
         if (res.ok) {
           showToast(data.message);
         } else {
-          alert(data.error || 'Failed to send alerts');
+          showEmergencyFallback(lat, lon, acc, data.error || 'Server rejected the alert. Send via SMS instead.');
         }
       } catch (e) {
-        alert('Network error - could not send emergency alert');
+        showEmergencyFallback(lat, lon, acc, 'Could not reach the server. Send your location via SMS instead.');
       }
       btn.disabled = false;
       btn.querySelector('span').textContent = 'Emergency - Alert Friends';
@@ -702,6 +955,9 @@
     setText('stat-min-ele',  s.hasElevationData ? `${s.minElevationM} m` : '—');
     setText('stat-calories', s.estimatedCalories ? `${Math.round(s.estimatedCalories)} kcal` : '—');
     setText('stat-speed',    s.avgSpeedKmh ? `${s.avgSpeedKmh} km/h` : '—');
+    setText('stat-vam',      s.vamMetersPerHour ? `${Math.round(s.vamMetersPerHour)} m/h` : '—');
+    setText('stat-gap',      s.gradeAdjustedPaceMinPerKm ? formatPace(s.gradeAdjustedPaceMinPerKm) : '—');
+    setText('stat-moving',   s.estimatedTimeMinutes ? formatTime(s.estimatedTimeMinutes) : '—');
 
     const timeCard = document.getElementById('card-time');
     if (timeCard && s.estimatedTimeMinutes && s.totalTimeMinutes > s.estimatedTimeMinutes) {
@@ -721,6 +977,14 @@
 
     HikerMap.renderRoute(data);
     renderSafety(data);
+    renderSplits(data);
+    weatherCacheKey = null;
+    weatherCache = null;
+    const cmpCard = document.getElementById('card-comparison');
+    cmpCard.classList.add('hidden');
+    cmpCard.classList.remove('safety-ok', 'safety-caution', 'safety-danger', 'safety-card');
+    document.querySelectorAll('.comparisons-banner').forEach(el => el.remove());
+    if (is3dMode && map3d) update3dRoute();
 
     if (data.elevationProfile && data.elevationProfile.length > 0) {
       document.getElementById('elevation-panel').style.display = '';
@@ -738,6 +1002,68 @@
       document.getElementById('gradient-legend').style.display = 'none';
       document.getElementById('viewer-screen').style.setProperty('--elev-h', '0px');
     }
+  }
+
+  // ── Splits rendering ───────────────────────────────────────────────────
+  function renderSplits(data) {
+    const tbody = document.getElementById('splits-tbody');
+    const summary = document.getElementById('splits-summary');
+    tbody.innerHTML = '';
+    summary.innerHTML = '';
+    const splits = data.splits || [];
+    const s = data.stats;
+
+    if (splits.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="splits-empty">Route is shorter than 1 km — no splits to show</td></tr>';
+      return;
+    }
+
+    const totalSegMin = splits.reduce((a, b) => a + b.minutes, 0);
+    const fastest = splits.reduce((a, b) => b.minutes < a.minutes ? b : a, splits[0]);
+    const slowest = splits.reduce((a, b) => b.minutes > a.minutes ? b : a, splits[0]);
+
+    const sumItems = [
+      { val: formatPace(s.gradeAdjustedPaceMinPerKm || 0), lbl: 'GAP' },
+      { val: `${Math.round(s.vamMetersPerHour || 0)} m/h`, lbl: 'VAM' },
+      { val: formatTime(s.estimatedTimeMinutes), lbl: 'Moving' }
+    ];
+    for (const it of sumItems) {
+      const div = document.createElement('div');
+      div.className = 'splits-summary-item';
+      const v = document.createElement('span'); v.className = 'splits-summary-val'; v.textContent = it.val;
+      const l = document.createElement('span'); l.className = 'splits-summary-lbl'; l.textContent = it.lbl;
+      div.append(v, l);
+      summary.appendChild(div);
+    }
+
+    for (const sp of splits) {
+      const tr = document.createElement('tr');
+      const isFast = sp === fastest && splits.length > 1;
+      const isSlow = sp === slowest && splits.length > 1;
+
+      const tdKm = document.createElement('td'); tdKm.textContent = sp.km;
+      const tdTime = document.createElement('td'); tdTime.textContent = formatTime(sp.minutes);
+      const tdPace = document.createElement('td'); tdPace.textContent = formatPace(sp.minutes);
+      if (isFast) tdPace.style.color = 'var(--c-primary-lt)';
+      if (isSlow) tdPace.style.color = 'var(--c-warning)';
+      const tdGain = document.createElement('td'); tdGain.textContent = `${Math.round(sp.elevationGainM)}m`;
+      const tdLoss = document.createElement('td'); tdLoss.textContent = `${Math.round(sp.elevationLossM)}m`;
+      const tdGrad = document.createElement('td');
+      const g = sp.avgGradientPct;
+      tdGrad.textContent = `${g >= 0 ? '+' : ''}${g.toFixed(1)}%`;
+      if (g > 1) tdGrad.className = 'splits-grad-up';
+      else if (g < -1) tdGrad.className = 'splits-grad-down';
+
+      tr.append(tdKm, tdTime, tdPace, tdGain, tdLoss, tdGrad);
+      tbody.appendChild(tr);
+    }
+  }
+
+  function formatPace(minPerKm) {
+    if (!minPerKm || minPerKm <= 0) return '—';
+    const m = Math.floor(minPerKm);
+    const s = Math.round((minPerKm - m) * 60);
+    return `${m}:${String(s).padStart(2, '0')}/km`;
   }
 
   // ── Safety rendering ────────────────────────────────────────────────────
@@ -790,6 +1116,9 @@
     recordedPoints = [];
     recordTotalDistM = 0;
     recordStartTime = Date.now();
+    recordSessionId = recordStartTime;
+    recordPhotoCount = 0;
+    setText('rec-photos-count', '0 photos');
 
     showScreen('viewer');
     document.getElementById('recording-overlay').classList.remove('hidden');
@@ -916,10 +1245,12 @@
       if (!res.ok) { showScreen('upload'); return; }
 
       routeData = data;
+      routeData._sessionId = recordSessionId;
       if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
       document.getElementById('btn-download-gpx').classList.remove('hidden');
       renderViewer(data);
       showScreen('viewer');
+      if (recordSessionId) showPhotosForActivity(null, recordSessionId);
     } catch (e) {
       showScreen('upload');
     }
@@ -940,14 +1271,127 @@
   function discardRecording() {
     document.getElementById('rec-complete').classList.add('hidden');
     if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+    if (recordSessionId) deletePhotosBySession(recordSessionId).catch(() => {});
     recordedPoints = [];
+    recordSessionId = null;
+    recordPhotoCount = 0;
     showScreen('upload');
+  }
+
+  // ── Photo capture ──────────────────────────────────────────────────────
+  const MAX_PHOTO_DIM = 1280;
+  const PHOTO_QUALITY = 0.78;
+
+  document.getElementById('btn-rec-photo').addEventListener('click', () => {
+    if (!isRecording) return;
+    document.getElementById('photo-input').click();
+  });
+
+  document.getElementById('photo-input').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!isRecording || !recordSessionId) return;
+
+    try {
+      const dataUrl = await compressImageToDataUrl(file, MAX_PHOTO_DIM, PHOTO_QUALITY);
+      const STALE_MS = 30000;
+      const freshGps = lastGpsPosition && (Date.now() - lastGpsPosition.timestamp) < STALE_MS;
+      const pt = freshGps ? {
+        lat: lastGpsPosition.coords.latitude,
+        lon: lastGpsPosition.coords.longitude
+      } : (recordedPoints.length > 0 ? {
+        lat: recordedPoints[recordedPoints.length - 1].lat,
+        lon: recordedPoints[recordedPoints.length - 1].lon
+      } : null);
+
+      if (!pt) {
+        alert('No fresh GPS fix yet - take a moment for your location to lock in.');
+        return;
+      }
+
+      await addPhoto({
+        sessionId: recordSessionId,
+        activityId: null,
+        timestamp: new Date().toISOString(),
+        lat: pt.lat,
+        lon: pt.lon,
+        dataUrl: dataUrl
+      });
+
+      recordPhotoCount++;
+      setText('rec-photos-count', `${recordPhotoCount} photo${recordPhotoCount === 1 ? '' : 's'}`);
+
+      const map = HikerMap.getMap();
+      if (map) {
+        L.marker([pt.lat, pt.lon], {
+          icon: L.divIcon({
+            html: '<div class="photo-marker">&#128247;</div>',
+            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+          })
+        }).addTo(map);
+      }
+      showToast('Photo saved at this point');
+    } catch (err) {
+      alert('Could not save photo: ' + err.message);
+    }
+  });
+
+  function compressImageToDataUrl(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+          else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Image decode failed'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(reader.error || new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function openPhotoModal(photo) {
+    document.getElementById('photo-modal-img').src = photo.dataUrl;
+    const meta = document.getElementById('photo-modal-meta');
+    const date = new Date(photo.timestamp).toLocaleString();
+    meta.textContent = `${photo.lat.toFixed(5)}, ${photo.lon.toFixed(5)}  -  ${date}`;
+    document.getElementById('photo-modal').classList.remove('hidden');
+  }
+
+  document.getElementById('photo-modal-close').addEventListener('click', () => {
+    document.getElementById('photo-modal').classList.add('hidden');
+  });
+  document.getElementById('photo-modal').addEventListener('click', e => {
+    if (e.target.id === 'photo-modal') document.getElementById('photo-modal').classList.add('hidden');
+  });
+
+  async function showPhotosForActivity(activityId, sessionId) {
+    let photos = [];
+    try {
+      if (activityId) photos = await getPhotosByActivity(activityId);
+      if ((!photos || photos.length === 0) && sessionId) photos = await getPhotosBySession(sessionId);
+    } catch (e) { return; }
+    if (!photos || photos.length === 0) return;
+    HikerMap.showPhotoMarkers(photos, openPhotoModal);
   }
 
   // ── Back button ────────────────────────────────────────────────────────
   document.getElementById('btn-back').addEventListener('click', () => {
     stopTracking();
+    stopPlayback();
+    playbackPos = 0;
     if (recordPolyline) { recordPolyline.remove(); recordPolyline = null; }
+    HikerMap.clearPhotoMarkers();
+    if (is3dMode) toggle3dMode();
     document.getElementById('recording-overlay').classList.add('hidden');
     document.getElementById('rec-complete').classList.add('hidden');
     document.getElementById('btn-download-gpx').classList.add('hidden');
@@ -1007,6 +1451,392 @@
     });
   });
 
+  // ── 3D terrain (MapLibre) ──────────────────────────────────────────────
+  let map3d = null;
+  let map3dLoaded = false;
+  let is3dMode = false;
+  let map3dLoading = false;
+
+  function load3dAssets() {
+    return new Promise((resolve, reject) => {
+      if (window.maplibregl) { resolve(); return; }
+      if (!document.querySelector('link[data-maplibre]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        css.dataset.maplibre = '1';
+        document.head.appendChild(css);
+      }
+      const existing = document.querySelector('script[data-maplibre]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve());
+        existing.addEventListener('error', () => reject(new Error('Failed to load MapLibre')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+      script.dataset.maplibre = '1';
+      script.onload = () => resolve();
+      script.onerror = () => { script.remove(); reject(new Error('Failed to load MapLibre')); };
+      document.head.appendChild(script);
+    });
+  }
+
+  function init3dMap() {
+    if (map3d || !window.maplibregl) return;
+    const pts = routeData?.trackPoints || [];
+    if (pts.length === 0) return;
+
+    const startLon = pts[0][1], startLat = pts[0][0];
+
+    map3d = new maplibregl.Map({
+      container: 'map3d',
+      style: {
+        version: 8,
+        sources: {
+          'osm-raster': {
+            type: 'raster',
+            tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png','https://b.tile.openstreetmap.org/{z}/{x}/{y}.png','https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap contributors',
+            maxzoom: 19
+          },
+          'terrain-dem': {
+            type: 'raster-dem',
+            tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            encoding: 'terrarium',
+            maxzoom: 14,
+            attribution: 'DEM: Mapzen'
+          }
+        },
+        layers: [
+          { id: 'osm-layer', type: 'raster', source: 'osm-raster' },
+          { id: 'hillshade', type: 'hillshade', source: 'terrain-dem',
+            paint: { 'hillshade-shadow-color': '#473B24', 'hillshade-exaggeration': 0.45 } }
+        ],
+        terrain: { source: 'terrain-dem', exaggeration: 1.5 }
+      },
+      center: [startLon, startLat],
+      zoom: 13,
+      pitch: 60,
+      bearing: 0,
+      maxPitch: 80
+    });
+    map3d.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
+    map3d.on('load', () => {
+      map3d.addSource('route-line', {
+        type: 'geojson',
+        data: routeLineGeoJson(pts)
+      });
+      map3d.addLayer({
+        id: 'route-line-layer',
+        type: 'line',
+        source: 'route-line',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#E76F51', 'line-width': 4 }
+      });
+      const startEnd = {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', properties: { kind: 'start' }, geometry: { type: 'Point', coordinates: [pts[0][1], pts[0][0]] }},
+          { type: 'Feature', properties: { kind: 'end' },   geometry: { type: 'Point', coordinates: [pts[pts.length-1][1], pts[pts.length-1][0]] }}
+        ]
+      };
+      map3d.addSource('route-ends', { type: 'geojson', data: startEnd });
+      map3d.addLayer({
+        id: 'route-ends-layer',
+        type: 'circle',
+        source: 'route-ends',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': ['match', ['get', 'kind'], 'start', '#52b788', 'end', '#E76F51', '#fff'],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      });
+      // Fit to bounds
+      const bounds = new maplibregl.LngLatBounds();
+      for (const p of pts) bounds.extend([p[1], p[0]]);
+      map3d.fitBounds(bounds, { padding: 60, pitch: 60, bearing: 0, duration: 800 });
+    });
+    map3dLoaded = true;
+  }
+
+  function routeLineGeoJson(pts) {
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: pts.map(p => [p[1], p[0]])
+      }
+    };
+  }
+
+  function update3dRoute() {
+    if (!map3d || !routeData?.trackPoints?.length) return;
+    const pts = routeData.trackPoints;
+    const src = map3d.getSource('route-line');
+    if (src) src.setData(routeLineGeoJson(pts));
+    const endsSrc = map3d.getSource('route-ends');
+    if (endsSrc) endsSrc.setData({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', properties: { kind: 'start' }, geometry: { type: 'Point', coordinates: [pts[0][1], pts[0][0]] }},
+        { type: 'Feature', properties: { kind: 'end' },   geometry: { type: 'Point', coordinates: [pts[pts.length-1][1], pts[pts.length-1][0]] }}
+      ]
+    });
+    if (window.maplibregl) {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const p of pts) bounds.extend([p[1], p[0]]);
+      map3d.fitBounds(bounds, { padding: 60, pitch: 60, bearing: 0, duration: 600 });
+    }
+  }
+
+  async function toggle3dMode() {
+    if (!routeData?.trackPoints?.length) {
+      alert('Open a route first.');
+      return;
+    }
+    const btn = document.getElementById('btn-3d');
+    if (!is3dMode) {
+      if (map3dLoading) return;
+      map3dLoading = true;
+      try {
+        await load3dAssets();
+      } catch (e) {
+        map3dLoading = false;
+        alert('Could not load 3D map. Check your connection.');
+        return;
+      }
+      map3dLoading = false;
+
+      document.getElementById('map').style.display = 'none';
+      document.getElementById('map3d').classList.remove('hidden');
+      document.getElementById('gradient-legend').style.display = 'none';
+      btn.classList.add('active');
+      is3dMode = true;
+
+      if (!map3d) init3dMap();
+      else { update3dRoute(); setTimeout(() => map3d.resize(), 50); }
+    } else {
+      document.getElementById('map3d').classList.add('hidden');
+      document.getElementById('map').style.display = '';
+      if (routeData?.elevationProfile?.length > 0) {
+        document.getElementById('gradient-legend').style.display = '';
+      }
+      btn.classList.remove('active');
+      is3dMode = false;
+      setTimeout(() => HikerMap.getMap()?.invalidateSize(), 50);
+    }
+  }
+
+  document.getElementById('btn-3d').addEventListener('click', toggle3dMode);
+
+  // ── Offline tile downloader ────────────────────────────────────────────
+  const OFFLINE_ZOOMS = [11, 12, 13, 14, 15];
+  const OFFLINE_MAX_TILES = 2500;
+  const OFFLINE_CONCURRENCY = 8;
+  let offlineCancelled = false;
+  let offlineInProgress = false;
+
+  function lonToTileX(lon, z) {
+    return Math.floor((lon + 180) / 360 * Math.pow(2, z));
+  }
+  function latToTileY(lat, z) {
+    const r = lat * Math.PI / 180;
+    return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+  }
+
+  function routeBounds() {
+    const pts = routeData?.trackPoints;
+    if (!pts || pts.length === 0) return null;
+    let minLat = pts[0][0], maxLat = pts[0][0];
+    let minLon = pts[0][1], maxLon = pts[0][1];
+    for (const p of pts) {
+      if (p[0] < minLat) minLat = p[0];
+      if (p[0] > maxLat) maxLat = p[0];
+      if (p[1] < minLon) minLon = p[1];
+      if (p[1] > maxLon) maxLon = p[1];
+    }
+    const padLat = (maxLat - minLat) * 0.10 + 0.005;
+    const padLon = (maxLon - minLon) * 0.10 + 0.005;
+    return {
+      minLat: minLat - padLat, maxLat: maxLat + padLat,
+      minLon: minLon - padLon, maxLon: maxLon + padLon
+    };
+  }
+
+  function enumerateTiles(bounds, zooms) {
+    const tiles = [];
+    for (const z of zooms) {
+      const xMin = lonToTileX(bounds.minLon, z);
+      const xMax = lonToTileX(bounds.maxLon, z);
+      const yMin = latToTileY(bounds.maxLat, z);
+      const yMax = latToTileY(bounds.minLat, z);
+      for (let x = xMin; x <= xMax; x++) {
+        for (let y = yMin; y <= yMax; y++) {
+          tiles.push([z, x, y]);
+          if (tiles.length >= OFFLINE_MAX_TILES) return tiles;
+        }
+      }
+    }
+    return tiles;
+  }
+
+  function tileUrl(layer, z, x, y) {
+    const sub = ['a','b','c'][(x + y) % 3];
+    switch (layer) {
+      case 'topo':      return `https://${sub}.tile.opentopomap.org/${z}/${x}/${y}.png`;
+      case 'satellite': return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+      case 'dark':      return `https://${sub}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
+      default:          return `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+    }
+  }
+
+  function getCurrentLayer() {
+    const active = document.querySelector('.layer-option.active');
+    return active?.dataset?.layer || 'osm';
+  }
+
+  async function downloadOfflineTiles() {
+    if (offlineInProgress) return;
+    if (!routeData?.trackPoints?.length) {
+      alert('Open a route first.');
+      return;
+    }
+    const bounds = routeBounds();
+    if (!bounds) return;
+    const layer = getCurrentLayer();
+    const tiles = enumerateTiles(bounds, OFFLINE_ZOOMS);
+    if (tiles.length === 0) return;
+
+    const estMB = Math.round(tiles.length * 20 / 1024);
+    if (tiles.length >= OFFLINE_MAX_TILES) {
+      if (!confirm(`Route is large. Will download the maximum ${OFFLINE_MAX_TILES} tiles (~${estMB} MB) at zoom levels ${OFFLINE_ZOOMS[0]}-${OFFLINE_ZOOMS[OFFLINE_ZOOMS.length-1]}. Proceed?`)) return;
+    } else {
+      if (!confirm(`Download ${tiles.length} tiles (~${estMB} MB) for the "${layer}" map at zoom ${OFFLINE_ZOOMS[0]}-${OFFLINE_ZOOMS[OFFLINE_ZOOMS.length-1]}? This will use mobile data once.`)) return;
+    }
+
+    // Storage quota check
+    if (navigator.storage?.estimate) {
+      const est = await navigator.storage.estimate();
+      const availableMB = (est.quota - est.usage) / 1024 / 1024;
+      if (availableMB < estMB * 1.5) {
+        alert(`Not enough storage. Available: ${Math.round(availableMB)} MB, needed: ${estMB} MB.`);
+        return;
+      }
+    }
+
+    offlineCancelled = false;
+    offlineInProgress = true;
+    const progressEl = document.getElementById('offline-tiles-progress');
+    const fillEl = document.getElementById('offline-progress-fill');
+    const textEl = document.getElementById('offline-progress-text');
+    const downloadBtn = document.getElementById('btn-offline-download');
+    const cancelBtn = document.getElementById('btn-offline-cancel');
+    progressEl.classList.remove('hidden');
+    cancelBtn.classList.remove('hidden');
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = 'Downloading...';
+
+    let completed = 0;
+    let errors = 0;
+    const total = tiles.length;
+    const updateProgress = () => {
+      const pct = Math.round(completed / total * 100);
+      fillEl.style.width = pct + '%';
+      textEl.textContent = `${completed} / ${total} tiles (${pct}%)`;
+    };
+    updateProgress();
+
+    // Worker pool
+    let next = 0;
+    async function worker() {
+      while (next < tiles.length && !offlineCancelled) {
+        const idx = next++;
+        const [z, x, y] = tiles[idx];
+        const url = tileUrl(layer, z, x, y);
+        try {
+          await fetch(url, { mode: 'cors', credentials: 'omit' });
+        } catch { errors++; }
+        completed++;
+        if (completed % 5 === 0 || completed === total) updateProgress();
+      }
+    }
+    const workers = Array.from({ length: OFFLINE_CONCURRENCY }, worker);
+    await Promise.all(workers);
+
+    offlineInProgress = false;
+    downloadBtn.disabled = false;
+    cancelBtn.classList.add('hidden');
+    downloadBtn.textContent = 'Download for offline';
+    if (offlineCancelled) {
+      textEl.textContent = `Cancelled at ${completed}/${total} tiles`;
+    } else {
+      textEl.textContent = `Done. ${completed - errors}/${total} tiles cached.`;
+      showToast(`Offline maps saved for this route`);
+    }
+    await refreshTileCacheInfo();
+    setTimeout(() => progressEl.classList.add('hidden'), 4000);
+  }
+
+  function cancelOfflineDownload() {
+    offlineCancelled = true;
+  }
+
+  function swRequest(message) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.serviceWorker?.controller) {
+        reject(new Error('Service worker not ready'));
+        return;
+      }
+      const channel = new MessageChannel();
+      const timeoutId = setTimeout(() => reject(new Error('Service worker timeout')), 8000);
+      channel.port1.onmessage = e => {
+        clearTimeout(timeoutId);
+        resolve(e.data);
+      };
+      navigator.serviceWorker.controller.postMessage(message, [channel.port2]);
+    });
+  }
+
+  async function clearTileCache() {
+    if (!confirm('Clear all cached offline tiles?')) return;
+    try {
+      await swRequest({ type: 'CLEAR_TILE_CACHE' });
+      showToast('Offline tiles cleared');
+      await refreshTileCacheInfo();
+    } catch (e) {
+      alert('Could not clear cache: ' + e.message);
+    }
+  }
+
+  async function refreshTileCacheInfo() {
+    const info = document.getElementById('offline-tiles-info');
+    if (!info) return;
+    try {
+      const result = await swRequest({ type: 'TILE_CACHE_SIZE' });
+      const bytes = result?.bytes || 0;
+      const mb = (bytes / 1024 / 1024).toFixed(1);
+      info.textContent = bytes === 0
+        ? 'No tiles cached yet.'
+        : `~${mb} MB cached for offline use`;
+    } catch (e) {
+      info.textContent = 'Reload page to enable offline.';
+    }
+  }
+
+  document.getElementById('btn-offline-download').addEventListener('click', downloadOfflineTiles);
+  document.getElementById('btn-offline-cancel').addEventListener('click', cancelOfflineDownload);
+  document.getElementById('btn-offline-clear').addEventListener('click', clearTileCache);
+
+  // Refresh cache info on any layer-panel button click (cheap)
+  document.getElementById('btn-layers').addEventListener('click', () => {
+    setTimeout(refreshTileCacheInfo, 0);
+  });
+
   // ── AI Tip (homepage) ──────────────────────────────────────────────────
   async function loadAiTip() {
     try {
@@ -1019,6 +1849,218 @@
         document.getElementById('btn-ai').classList.remove('hidden');
       }
     } catch (e) { /* offline */ }
+  }
+
+  // ── Route playback ─────────────────────────────────────────────────────
+  let playbackRaf = null;
+  let playbackStart = 0;
+  let playbackElapsedAtStart = 0;
+  let playbackPos = 0; // 0..1
+  let playbackSpeed = 1;
+  const PLAYBACK_BASE_DURATION_MS = 30000;
+
+  function isPlaying() { return playbackRaf !== null; }
+
+  function setPlaybackSpeed(spd) {
+    if (isPlaying()) {
+      playbackElapsedAtStart = playbackPos * (PLAYBACK_BASE_DURATION_MS / playbackSpeed);
+      playbackStart = performance.now();
+    }
+    playbackSpeed = spd;
+    const btn = document.getElementById('btn-playback-speed');
+    if (btn) btn.textContent = spd + 'x';
+  }
+
+  function playbackTick(now) {
+    const pts = routeData?.trackPoints;
+    if (!pts || pts.length === 0) { stopPlayback(); return; }
+    const profileLen = HikerElevation.getProfileLength();
+
+    const elapsed = (now - playbackStart) + playbackElapsedAtStart;
+    const totalDuration = PLAYBACK_BASE_DURATION_MS / playbackSpeed;
+    playbackPos = Math.min(1, elapsed / totalDuration);
+
+    const trackIdx = Math.min(pts.length - 1, Math.floor(playbackPos * (pts.length - 1)));
+    HikerMap.showPositionAtIndex(trackIdx);
+
+    if (profileLen > 0) {
+      const profileIdx = Math.min(profileLen - 1, Math.floor(playbackPos * (profileLen - 1)));
+      HikerElevation.highlightIndex(profileIdx);
+      const profilePt = routeData.elevationProfile?.[profileIdx];
+      if (profilePt) HikerElevation.showHoverInfo(profilePt);
+    }
+
+    if (playbackPos >= 1) { stopPlayback(); return; }
+    playbackRaf = requestAnimationFrame(playbackTick);
+  }
+
+  function startPlayback() {
+    if (!routeData?.trackPoints?.length) return;
+    if (playbackPos >= 1) playbackPos = 0;
+    playbackElapsedAtStart = playbackPos * (PLAYBACK_BASE_DURATION_MS / playbackSpeed);
+    playbackStart = performance.now();
+    playbackRaf = requestAnimationFrame(playbackTick);
+    document.getElementById('btn-playback').classList.add('playing');
+  }
+
+  function stopPlayback() {
+    if (playbackRaf !== null) cancelAnimationFrame(playbackRaf);
+    playbackRaf = null;
+    document.getElementById('btn-playback').classList.remove('playing');
+    HikerElevation.clearHighlight();
+  }
+
+  function togglePlayback() {
+    if (isPlaying()) stopPlayback();
+    else startPlayback();
+  }
+
+  document.getElementById('btn-playback').addEventListener('click', e => {
+    e.stopPropagation();
+    togglePlayback();
+  });
+  document.getElementById('btn-playback-speed').addEventListener('click', e => {
+    e.stopPropagation();
+    const next = playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1;
+    setPlaybackSpeed(next);
+  });
+
+  // ── Splits panel ───────────────────────────────────────────────────────
+  document.getElementById('btn-splits').addEventListener('click', () => {
+    document.getElementById('splits-panel').classList.toggle('hidden');
+  });
+  document.getElementById('btn-close-splits').addEventListener('click', () => {
+    document.getElementById('splits-panel').classList.add('hidden');
+  });
+
+  // ── Weather panel ──────────────────────────────────────────────────────
+  let weatherCacheKey = null;
+  let weatherCache = null;
+
+  document.getElementById('btn-weather').addEventListener('click', toggleWeatherPanel);
+  document.getElementById('btn-close-weather').addEventListener('click', () => {
+    document.getElementById('weather-panel').classList.add('hidden');
+  });
+
+  async function toggleWeatherPanel() {
+    const panel = document.getElementById('weather-panel');
+    if (!panel.classList.contains('hidden')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    await loadWeatherForRoute();
+  }
+
+  async function loadWeatherForRoute() {
+    const content = document.getElementById('weather-content');
+    if (!routeData?.trackPoints?.length) {
+      content.innerHTML = '<p class="splits-empty">No route loaded.</p>';
+      return;
+    }
+    const start = routeData.trackPoints[0];
+    const key = `${start[0].toFixed(2)},${start[1].toFixed(2)}`;
+
+    if (weatherCacheKey === key && weatherCache) {
+      renderWeather(weatherCache);
+      return;
+    }
+
+    content.innerHTML = '<div class="ai-loading"><div class="spinner"></div><p>Loading forecast...</p></div>';
+    try {
+      const res = await fetch(`/api/weather?lat=${start[0]}&lon=${start[1]}`);
+      if (!res.ok) {
+        content.innerHTML = '<p style="color:var(--c-text-muted);text-align:center;padding:20px">Weather service unavailable.</p>';
+        return;
+      }
+      const data = await res.json();
+      weatherCacheKey = key;
+      weatherCache = data;
+      renderWeather(data);
+    } catch (e) {
+      content.innerHTML = '<p style="color:var(--c-danger);text-align:center;padding:20px">Could not load weather. Check your connection.</p>';
+    }
+  }
+
+  function renderWeather(data) {
+    const content = document.getElementById('weather-content');
+    content.innerHTML = '';
+
+    const risk = data.risk || { level: 'OK', summary: '' };
+    const riskClass = risk.level === 'DANGER' ? 'weather-risk-danger' : risk.level === 'CAUTION' ? 'weather-risk-caution' : 'weather-risk-ok';
+    const riskBox = document.createElement('div');
+    riskBox.className = `weather-risk ${riskClass}`;
+    const lbl = document.createElement('span'); lbl.className = 'wr-label'; lbl.textContent = risk.level;
+    riskBox.appendChild(lbl);
+    riskBox.appendChild(document.createTextNode(risk.summary || ''));
+    content.appendChild(riskBox);
+
+    if (data.current) {
+      const now = document.createElement('div');
+      now.className = 'weather-now';
+      const desc = document.createElement('span');
+      desc.className = 'weather-now-desc';
+      desc.textContent = data.current.description;
+      const time = document.createElement('span');
+      time.className = 'weather-now-time';
+      time.textContent = 'now';
+      now.append(desc, time);
+      content.appendChild(now);
+
+      const grid = document.createElement('div');
+      grid.className = 'weather-current';
+      const cur = data.current;
+      const items = [
+        { val: `${Math.round(cur.tempC)}°C`, lbl: 'Temp' },
+        { val: `${cur.precipMm.toFixed(1)} mm`, lbl: 'Precip' },
+        { val: `${Math.round(cur.windKmh)} km/h`, lbl: 'Wind' }
+      ];
+      for (const it of items) {
+        const card = document.createElement('div');
+        card.className = 'weather-cur-card';
+        const v = document.createElement('span'); v.className = 'weather-cur-val'; v.textContent = it.val;
+        const l = document.createElement('span'); l.className = 'weather-cur-lbl'; l.textContent = it.lbl;
+        card.append(v, l);
+        grid.appendChild(card);
+      }
+      content.appendChild(grid);
+    }
+
+    if (data.hourly && data.hourly.length > 0) {
+      const title = document.createElement('div');
+      title.className = 'weather-hours-title';
+      title.textContent = `Next ${Math.min(data.hourly.length, 12)} hours`;
+      content.appendChild(title);
+
+      const row = document.createElement('div');
+      row.className = 'weather-hours';
+      for (const h of data.hourly.slice(0, 12)) {
+        const card = document.createElement('div');
+        card.className = 'weather-hour';
+        card.title = h.description;
+
+        const t = document.createElement('span');
+        t.className = 'weather-hour-time';
+        const hourStr = h.time.slice(11, 13);
+        t.textContent = `${hourStr}:00`;
+
+        const tp = document.createElement('span');
+        tp.className = 'weather-hour-temp';
+        tp.textContent = `${Math.round(h.tempC)}°`;
+
+        const pp = document.createElement('span');
+        pp.className = 'weather-hour-precip' + (h.precipMm < 0.1 ? ' weather-dry' : '');
+        pp.textContent = `${h.precipMm.toFixed(1)}mm`;
+
+        const wd = document.createElement('span');
+        wd.className = 'weather-hour-wind';
+        wd.textContent = `${Math.round(h.windKmh)}km/h`;
+
+        card.append(t, tp, pp, wd);
+        row.appendChild(card);
+      }
+      content.appendChild(row);
+    }
   }
 
   // ── AI Analysis ────────────────────────────────────────────────────────
@@ -1215,10 +2257,15 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
+  // ── Theme toggle wiring ──────────────────────────────────────────────
+  document.getElementById('btn-theme-floating')?.addEventListener('click', toggleTheme);
+  document.getElementById('btn-theme-viewer')?.addEventListener('click', toggleTheme);
+
   // ── Init ───────────────────────────────────────────────────────────────
   if (!navigator.onLine) document.getElementById('offline-banner').classList.remove('hidden');
 
   HikerMap.init();
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
   checkAuth();
   updateSyncBadge();
   loadAiTip();
@@ -1228,7 +2275,7 @@
     try {
       const data = JSON.parse(cached);
       const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2d1e;border:1px solid rgba(116,198,157,0.3);border-radius:10px;padding:10px 16px;font-size:0.8rem;color:#74C69D;cursor:pointer;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+      banner.className = 'app-toast clickable';
       banner.textContent = `Load "${data.name || 'last route'}"`;
       banner.addEventListener('click', () => {
         banner.remove();
@@ -1243,5 +2290,14 @@
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'SYNC_ACTIVITIES' && currentUser) syncPendingActivities();
+    });
   }
+  // Poll fallback: when document becomes visible (iOS lacks background sync)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && navigator.onLine && currentUser) {
+      syncPendingActivities();
+    }
+  });
 })();

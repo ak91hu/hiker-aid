@@ -27,7 +27,7 @@ public class RouteAnalysisService {
 
         if (points.size() < 2) {
             return new AnalysisResult(data.name(), data.description(),
-                emptyStats(points.size()), List.of(), List.of(), List.of(), data.waypoints(), null);
+                emptyStats(points.size()), List.of(), List.of(), List.of(), data.waypoints(), null, List.of());
         }
 
         double[] cumDist = new double[points.size()];
@@ -87,6 +87,9 @@ public class RouteAnalysisService {
         int diffScore = difficultyScore(totalDistKm, totalAscent, maxAbsGradient);
         double calories = estimateCalories(weightKg, heightCm, totalDistKm, totalAscent, totalDescent, movingMinutes);
 
+        double vam = movingMinutes > 0 ? totalAscent / (movingMinutes / 60.0) : 0;
+        double gapPace = computeGradeAdjustedPace(points, cumDist, paceFactor);
+
         RouteStats stats = new RouteStats(
             round2(totalDistKm),
             round1(totalAscent),
@@ -102,19 +105,111 @@ public class RouteAnalysisService {
             points.size(),
             round1(avgSpeedKmh),
             hasEle,
-            hasTime
+            hasTime,
+            round1(vam),
+            round2(gapPace)
         );
 
         List<double[]> trackPts = buildTrackPoints(points);
         List<double[]> gradientSegs = buildGradientSegments(points, smoothGradients);
         List<ElevationPoint> profile = buildElevationProfile(points, cumDist, smoothGradients, hasEle);
+        List<SplitData> splits = buildSplits(points, cumDist, paceFactor);
 
         int startMinutesOfDay = startHour * 60 + startMinute;
         int dayOfYear = LocalDate.now().getDayOfYear();
         SafetyAnalysis safety = computeSafety(points, cumDist, paceFactor, fitnessLevel, startMinutesOfDay, dayOfYear);
 
         return new AnalysisResult(data.name(), data.description(), stats,
-            trackPts, gradientSegs, profile, data.waypoints(), safety);
+            trackPts, gradientSegs, profile, data.waypoints(), safety, splits);
+    }
+
+    private double computeGradeAdjustedPace(List<TrackPoint> points, double[] cumDist, double paceFactor) {
+        double flatSpeed = toblerSpeed(0);
+        double flatEquivalentDistM = 0;
+        double totalTimeMin = 0;
+
+        for (int i = 1; i < points.size(); i++) {
+            double hDist = cumDist[i] - cumDist[i - 1];
+            if (hDist < 0.1) continue;
+            double slope = 0;
+            if (points.get(i).elevation() != null && points.get(i - 1).elevation() != null) {
+                slope = (points.get(i).elevation() - points.get(i - 1).elevation()) / hDist;
+            }
+            double slopeSpeed = toblerSpeed(slope);
+            flatEquivalentDistM += hDist * (flatSpeed / slopeSpeed);
+            totalTimeMin += (hDist / 1000.0 / slopeSpeed) * 60.0 / paceFactor;
+        }
+        if (flatEquivalentDistM < 1 || totalTimeMin < 0.1) return 0;
+        return totalTimeMin / (flatEquivalentDistM / 1000.0);
+    }
+
+    private List<SplitData> buildSplits(List<TrackPoint> points, double[] cumDist, double paceFactor) {
+        List<SplitData> out = new ArrayList<>();
+        int n = points.size();
+        if (n < 2) return out;
+        double totalDistM = cumDist[n - 1];
+        int fullKm = (int) Math.floor(totalDistM / 1000.0);
+        if (fullKm < 1) return out;
+
+        double[] kmMinutes = new double[fullKm + 1];
+        double[] kmGain = new double[fullKm + 1];
+        double[] kmLoss = new double[fullKm + 1];
+
+        for (int i = 1; i < n; i++) {
+            double dStart = cumDist[i - 1];
+            double dEnd = cumDist[i];
+            double segDist = dEnd - dStart;
+            if (segDist < 0.1) continue;
+
+            double slope = 0;
+            Double e1 = points.get(i - 1).elevation();
+            Double e2 = points.get(i).elevation();
+            if (e1 != null && e2 != null) slope = (e2 - e1) / segDist;
+
+            double segMinutes = (segDist / 1000.0 / toblerSpeed(slope)) * 60.0 / paceFactor;
+            // Filter GPS noise: ignore segment elevation diffs below ~0.5m
+            double segGain = 0, segLoss = 0;
+            if (e1 != null && e2 != null) {
+                double diff = e2 - e1;
+                if (Math.abs(diff) > 0.5) {
+                    if (diff > 0) segGain = diff; else segLoss = -diff;
+                }
+            }
+
+            int kStart = Math.min((int) (dStart / 1000.0), fullKm);
+            int kEnd = Math.min((int) (dEnd / 1000.0), fullKm);
+
+            if (kStart == kEnd) {
+                kmMinutes[kStart] += segMinutes;
+                kmGain[kStart] += segGain;
+                kmLoss[kStart] += segLoss;
+            } else {
+                for (int k = kStart; k <= kEnd; k++) {
+                    double bucketStart = k * 1000.0;
+                    double bucketEnd = (k + 1) * 1000.0;
+                    double overlapStart = Math.max(dStart, bucketStart);
+                    double overlapEnd = Math.min(dEnd, bucketEnd);
+                    double overlap = overlapEnd - overlapStart;
+                    if (overlap <= 0) continue;
+                    double frac = overlap / segDist;
+                    kmMinutes[k] += segMinutes * frac;
+                    kmGain[k] += segGain * frac;
+                    kmLoss[k] += segLoss * frac;
+                }
+            }
+        }
+
+        for (int k = 0; k < fullKm; k++) {
+            double avgGrad = ((kmGain[k] - kmLoss[k]) / 1000.0) * 100.0;
+            out.add(new SplitData(
+                k + 1,
+                Math.round(kmMinutes[k]),
+                round1(kmGain[k]),
+                round1(kmLoss[k]),
+                round1(avgGrad)
+            ));
+        }
+        return out;
     }
 
     // ── Safety analysis ─────────────────────────────────────────────────────
@@ -438,7 +533,7 @@ public class RouteAnalysisService {
 
     private RouteStats emptyStats(int pointCount) {
         return new RouteStats(0, 0, 0, 0, 0, 0, 0, 0, "Unknown", 0, 0, pointCount, 0,
-            false, false);
+            false, false, 0, 0);
     }
 
     private double round1(double v) { return Math.round(v * 10.0) / 10.0; }

@@ -246,6 +246,28 @@ const HikerMap = (() => {
   function getTrackPoints() { return trackPoints; }
   function getMap() { return map; }
 
+  let photoLayer;
+  function showPhotoMarkers(photos, onClick) {
+    if (!photoLayer) photoLayer = L.layerGroup().addTo(map);
+    photoLayer.clearLayers();
+    if (!photos || photos.length === 0) return;
+    for (const p of photos) {
+      const marker = L.marker([p.lat, p.lon], {
+        icon: L.divIcon({
+          html: '<div class="photo-marker">\u{1F4F7}</div>',
+          className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+        }),
+        zIndexOffset: 700
+      }).addTo(photoLayer);
+      if (onClick) marker.on('click', () => onClick(p));
+    }
+  }
+
+  function clearPhotoMarkers() {
+    if (photoLayer) photoLayer.clearLayers();
+  }
+
   return { init, renderRoute, setLayer, updateGpsPosition, clearGpsMarker,
-           nearestPointIndex, showPositionAtIndex, showSafetyMarkers, getTrackPoints, getMap };
+           nearestPointIndex, showPositionAtIndex, showSafetyMarkers, getTrackPoints, getMap,
+           showPhotoMarkers, clearPhotoMarkers };
 })();

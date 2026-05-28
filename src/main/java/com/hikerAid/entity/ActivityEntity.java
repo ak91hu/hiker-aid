@@ -28,6 +28,10 @@ public class ActivityEntity {
     private Double maxElevationM;
     private Double minElevationM;
     private Double avgSpeedKmh;
+    private Double startLat;
+    private Double startLon;
+    private Double endLat;
+    private Double endLon;
 
     @Lob
     private String gpxData;
@@ -49,6 +53,10 @@ public class ActivityEntity {
     public Double getMaxElevationM() { return maxElevationM; }
     public Double getMinElevationM() { return minElevationM; }
     public Double getAvgSpeedKmh() { return avgSpeedKmh; }
+    public Double getStartLat() { return startLat; }
+    public Double getStartLon() { return startLon; }
+    public Double getEndLat() { return endLat; }
+    public Double getEndLon() { return endLon; }
     public String getGpxData() { return gpxData; }
 
     public void setUser(UserEntity user) { this.user = user; }
@@ -65,5 +73,9 @@ public class ActivityEntity {
     public void setMaxElevationM(Double v) { this.maxElevationM = v; }
     public void setMinElevationM(Double v) { this.minElevationM = v; }
     public void setAvgSpeedKmh(Double v) { this.avgSpeedKmh = v; }
+    public void setStartLat(Double v) { this.startLat = v; }
+    public void setStartLon(Double v) { this.startLon = v; }
+    public void setEndLat(Double v) { this.endLat = v; }
+    public void setEndLon(Double v) { this.endLon = v; }
     public void setGpxData(String gpxData) { this.gpxData = gpxData; }
 }

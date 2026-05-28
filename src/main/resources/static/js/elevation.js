@@ -123,5 +123,19 @@ const HikerElevation = (() => {
     if (el) el.textContent = '';
   }
 
-  return { build, setHoverCallback, showHoverInfo, clearHoverInfo };
+  function highlightIndex(idx) {
+    if (!chart || idx < 0 || idx >= profileData.length) return;
+    chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+    chart.update('none');
+  }
+
+  function clearHighlight() {
+    if (!chart) return;
+    chart.setActiveElements([]);
+    chart.update('none');
+  }
+
+  function getProfileLength() { return profileData.length; }
+
+  return { build, setHoverCallback, showHoverInfo, clearHoverInfo, highlightIndex, clearHighlight, getProfileLength };
 })();

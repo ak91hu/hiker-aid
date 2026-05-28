@@ -17,12 +17,26 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=16">
+    <link rel="stylesheet" href="/css/style.css?v=18">
+    <script>
+      // Apply theme before paint to avoid flash
+      (function () {
+        try {
+          var saved = localStorage.getItem('hikerAid_theme');
+          var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════ UPLOAD SCREEN -->
 <div id="upload-screen" class="screen active">
+    <button id="btn-theme-floating" class="theme-toggle-floating" title="Toggle light/dark theme" aria-label="Toggle theme">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
     <div id="offline-banner" class="offline-banner hidden">Offline</div>
 
     <div id="user-panel" class="user-panel hidden">
@@ -247,6 +261,16 @@
                     <path d="M12 2a4 4 0 014 4v1a2 2 0 012 2v1a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2V6a4 4 0 014-4z"/><path d="M9 22v-4h6v4"/><path d="M7 22h10"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/>
                 </svg>
             </button>
+            <button id="btn-splits" class="header-btn splits-btn" aria-label="Splits" title="Per-km splits">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/>
+                </svg>
+            </button>
+            <button id="btn-weather" class="header-btn weather-btn" aria-label="Weather" title="Weather forecast">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+                </svg>
+            </button>
             <button id="btn-export" class="header-btn" aria-label="Download summary" title="Download route summary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
@@ -257,11 +281,19 @@
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
             </button>
+            <button id="btn-3d" class="header-btn three-d-btn" aria-label="Toggle 3D view" title="3D terrain view">
+                <span class="three-d-label">3D</span>
+            </button>
+            <button id="btn-theme-viewer" class="header-btn" aria-label="Toggle theme" title="Toggle light/dark theme">
+                <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
         </div>
     </header>
 
     <!-- Map -->
     <div id="map" aria-label="Route map"></div>
+    <div id="map3d" class="map3d hidden" aria-label="3D terrain view"></div>
 
     <!-- Gradient legend (overlaid on map) -->
     <div id="gradient-legend" class="gradient-legend">
@@ -317,6 +349,22 @@
             <span class="stat-value" id="stat-speed">—</span>
             <span class="stat-label">Avg Speed</span>
         </div>
+        <div class="stat-card" id="card-vam" title="Vertical Ascent Metres per hour">
+            <span class="stat-value" id="stat-vam">—</span>
+            <span class="stat-label">VAM</span>
+        </div>
+        <div class="stat-card" id="card-gap" title="Grade-adjusted pace - flat-equivalent pace">
+            <span class="stat-value" id="stat-gap">—</span>
+            <span class="stat-label">GAP</span>
+        </div>
+        <div class="stat-card" id="card-moving" title="Pure moving time excluding rest breaks">
+            <span class="stat-value" id="stat-moving">—</span>
+            <span class="stat-label">Moving</span>
+        </div>
+        <div class="stat-card hidden" id="card-comparison" title="Compared to your past attempts on this route">
+            <span class="stat-value" id="stat-comparison">—</span>
+            <span class="stat-label">vs You</span>
+        </div>
 <div class="stat-card difficulty-card" id="card-difficulty">
             <span class="stat-value" id="stat-difficulty">—</span>
             <span class="stat-label">Difficulty</span>
@@ -350,6 +398,11 @@
         <div class="elevation-header" id="elevation-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="elevation-chart-container">
             <span class="elevation-title">Elevation Profile</span>
             <div class="elevation-header-right">
+                <button id="btn-playback" class="playback-btn" title="Play route animation" aria-label="Play">
+                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+                </button>
+                <button id="btn-playback-speed" class="playback-speed-btn" title="Playback speed">1x</button>
                 <span id="hover-info" class="hover-info"></span>
                 <svg id="elevation-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M18 15l-6-6-6 6"/>
@@ -366,6 +419,7 @@
         <div class="rec-header">
             <span class="rec-indicator"><span class="rec-dot pulse"></span> REC</span>
             <span class="rec-points" id="rec-points">0 pts</span>
+            <span class="rec-photos" id="rec-photos-count">0 photos</span>
         </div>
         <div class="rec-stats-bar">
             <div class="rec-stat"><span class="rec-val" id="rec-distance">0.00</span><span class="rec-lbl">km</span></div>
@@ -373,7 +427,23 @@
             <div class="rec-stat"><span class="rec-val" id="rec-ele">--</span><span class="rec-lbl">altitude</span></div>
             <div class="rec-stat"><span class="rec-val" id="rec-pace">--</span><span class="rec-lbl">pace</span></div>
         </div>
-        <button id="btn-rec-stop" class="rec-stop-btn">Stop &amp; Finish</button>
+        <div class="rec-actions">
+            <button id="btn-rec-photo" class="rec-photo-btn" title="Take a photo at this point">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Photo</span>
+            </button>
+            <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none">
+            <button id="btn-rec-stop" class="rec-stop-btn">Stop &amp; Finish</button>
+        </div>
+    </div>
+
+    <!-- Photo viewer modal -->
+    <div id="photo-modal" class="photo-modal hidden">
+        <div class="photo-modal-content">
+            <button id="photo-modal-close" class="photo-modal-close" aria-label="Close">&#10005;</button>
+            <img id="photo-modal-img" alt="Captured photo">
+            <div id="photo-modal-meta" class="photo-modal-meta"></div>
+        </div>
     </div>
 
     <!-- Recording complete dialog -->
@@ -384,6 +454,45 @@
             <button id="btn-rec-analyze" class="rec-action-btn primary">Analyze Route</button>
             <button id="btn-rec-download-gpx" class="rec-action-btn">Download GPX</button>
             <button id="btn-rec-discard" class="rec-action-btn danger">Discard</button>
+        </div>
+    </div>
+
+    <!-- Emergency fallback modal -->
+    <div id="emergency-fallback" class="emergency-fallback hidden">
+        <div class="ef-box">
+            <h3 class="ef-title">No internet - use SMS</h3>
+            <p class="ef-sub" id="ef-sub">Server unreachable. Send your location via your phone's SMS app instead.</p>
+            <div class="ef-coords" id="ef-coords"></div>
+            <a id="ef-sms" class="ef-action ef-primary" href="#">Open SMS app</a>
+            <a id="ef-maps" class="ef-action" href="#" target="_blank" rel="noopener">Open in Google Maps</a>
+            <button id="ef-copy" class="ef-action">Copy emergency message</button>
+            <button id="ef-close" class="ef-action ef-cancel">Close</button>
+        </div>
+    </div>
+
+    <!-- Weather panel -->
+    <div id="weather-panel" class="weather-panel hidden">
+        <div class="weather-panel-header">
+            <span class="weather-panel-title">Route Weather</span>
+            <button id="btn-close-weather" class="close-btn" aria-label="Close weather panel">&#10005;</button>
+        </div>
+        <div id="weather-content" class="weather-content">
+            <div class="ai-loading"><div class="spinner"></div><p>Loading forecast...</p></div>
+        </div>
+    </div>
+
+    <!-- Splits panel -->
+    <div id="splits-panel" class="splits-panel hidden">
+        <div class="splits-panel-header">
+            <span class="splits-panel-title">Per-km Splits</span>
+            <button id="btn-close-splits" class="close-btn" aria-label="Close splits panel">&#10005;</button>
+        </div>
+        <div class="splits-summary" id="splits-summary"></div>
+        <div class="splits-table-wrap">
+            <table class="splits-table" id="splits-table">
+                <thead><tr><th>km</th><th>Time</th><th>Pace</th><th>Gain</th><th>Loss</th><th>Grad</th></tr></thead>
+                <tbody id="splits-tbody"></tbody>
+            </table>
         </div>
     </div>
 
@@ -426,13 +535,27 @@
                 <span>Dark</span>
             </label>
         </div>
+        <div class="offline-tiles-section">
+            <div class="offline-tiles-title">Offline Maps</div>
+            <p class="offline-tiles-help">Download tiles around this route for use without internet.</p>
+            <div class="offline-tiles-info" id="offline-tiles-info">No tiles cached.</div>
+            <div class="offline-tiles-progress hidden" id="offline-tiles-progress">
+                <div class="offline-progress-bar"><div class="offline-progress-fill" id="offline-progress-fill"></div></div>
+                <div class="offline-progress-text" id="offline-progress-text">0%</div>
+            </div>
+            <div class="offline-tiles-actions">
+                <button id="btn-offline-download" class="offline-action-btn primary">Download for offline</button>
+                <button id="btn-offline-cancel" class="offline-action-btn hidden">Cancel</button>
+                <button id="btn-offline-clear" class="offline-action-btn danger">Clear cache</button>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-<script src="/js/map.js?v=16"></script>
-<script src="/js/elevation.js?v=16"></script>
-<script src="/js/app.js?v=16"></script>
+<script src="/js/map.js?v=18"></script>
+<script src="/js/elevation.js?v=18"></script>
+<script src="/js/app.js?v=18"></script>
 </body>
 </html>
