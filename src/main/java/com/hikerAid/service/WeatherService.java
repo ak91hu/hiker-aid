@@ -113,7 +113,8 @@ public class WeatherService {
         return 0;
     }
 
-    private WeatherForecast.WeatherRisk assessRisk(
+    // package-private for unit testing
+    WeatherForecast.WeatherRisk assessRisk(
             WeatherForecast.Current cur, List<WeatherForecast.HourForecast> hours) {
         double maxPrecip = cur.precipMm();
         double maxWind = cur.windKmh();
@@ -177,7 +178,8 @@ public class WeatherService {
         return code == 71 || code == 73 || code == 75 || code == 77 || code == 85 || code == 86;
     }
 
-    private String describe(int code) {
+    // package-private for unit testing
+    String describe(int code) {
         return switch (code) {
             case 0 -> "Clear sky";
             case 1, 2 -> "Mostly clear";

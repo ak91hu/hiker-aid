@@ -180,7 +180,8 @@ public class ActivityController {
         "<trkpt\\s+[^>]*lat=\"(-?[0-9.]+)\"[^>]*lon=\"(-?[0-9.]+)\"",
         Pattern.CASE_INSENSITIVE);
 
-    private double[] extractEndpoints(String gpx) {
+    // package-private for unit testing
+    double[] extractEndpoints(String gpx) {
         if (gpx == null || gpx.isEmpty()) return null;
         Matcher m = TRKPT_PATTERN.matcher(gpx);
         double startLat = 0, startLon = 0, endLat = 0, endLon = 0;
@@ -197,7 +198,8 @@ public class ActivityController {
         return new double[]{startLat, startLon, endLat, endLon};
     }
 
-    private boolean routeMatches(ActivityEntity a, ActivityEntity b) {
+    // package-private for unit testing
+    boolean routeMatches(ActivityEntity a, ActivityEntity b) {
         if (a.getDistanceKm() == null || b.getDistanceKm() == null) return false;
         double distRatio = Math.abs(a.getDistanceKm() - b.getDistanceKm()) / Math.max(a.getDistanceKm(), 0.1);
         if (distRatio > 0.10) return false;
