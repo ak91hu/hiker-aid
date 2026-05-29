@@ -89,7 +89,6 @@ public class ActivityController {
         a.setAvgSpeedKmh(dbl(body.get("avgSpeedKmh")));
         a.setGpxData(str(body.get("gpxData")));
 
-        // Extract start/end coords from gpx for route comparison
         double[] coords = extractEndpoints(a.getGpxData());
         if (coords != null) {
             a.setStartLat(coords[0]); a.setStartLon(coords[1]);
@@ -111,7 +110,6 @@ public class ActivityController {
             return ResponseEntity.notFound().build();
         }
 
-        // Lazy backfill if missing
         if (target.getStartLat() == null) {
             double[] c = extractEndpoints(target.getGpxData());
             if (c != null) {

@@ -1,5 +1,3 @@
-/* HikerAid — Leaflet map module */
-
 const HikerMap = (() => {
   let map, gradientLayer, waypointLayer, gpsMarker, routeOutline;
   let trackPoints = [];
@@ -63,7 +61,7 @@ const HikerMap = (() => {
     map = L.map('map', {
       zoomControl: true,
       attributionControl: true,
-      renderer: L.canvas({ padding: 0.5 }) // canvas renderer — much faster for many polylines
+      renderer: L.canvas({ padding: 0.5 })
     });
 
     tileLayers.osm.addTo(map);
@@ -78,7 +76,6 @@ const HikerMap = (() => {
 
     trackPoints = result.trackPoints;
 
-    // Draw thin route outline for non-coloured fallback
     if (result.trackPoints.length > 1) {
       routeOutline = L.polyline(result.trackPoints, {
         color: 'rgba(0,0,0,0.3)',
@@ -89,7 +86,6 @@ const HikerMap = (() => {
       }).addTo(gradientLayer);
     }
 
-    // Draw gradient-coloured segments
     if (result.gradientSegments && result.gradientSegments.length > 0) {
       result.gradientSegments.forEach(seg => {
         const [lat1, lon1, lat2, lon2, gradient] = seg;
@@ -103,7 +99,6 @@ const HikerMap = (() => {
       });
     }
 
-    // Start / end markers
     if (result.trackPoints.length > 0) {
       const start = result.trackPoints[0];
       const end   = result.trackPoints[result.trackPoints.length - 1];
@@ -123,7 +118,6 @@ const HikerMap = (() => {
       }).bindPopup('<strong>Finish</strong>').addTo(waypointLayer);
     }
 
-    // Waypoint markers
     if (result.waypoints) {
       result.waypoints.forEach(wpt => {
         if (!wpt.name && !wpt.description) return;
@@ -157,7 +151,7 @@ const HikerMap = (() => {
     if (trackPoints.length === 0) return;
     try {
       map.fitBounds(L.latLngBounds(trackPoints), { padding: [24, 24], maxZoom: 16 });
-    } catch (e) { /* empty bounds */ }
+    } catch (e) {}
   }
 
   function setLayer(name) {
@@ -168,7 +162,6 @@ const HikerMap = (() => {
     currentLayer = name;
   }
 
-  // Highlight a position on the map given a track point index
   function showPositionAtIndex(idx) {
     const pt = trackPoints[idx];
     if (!pt) return;
@@ -182,7 +175,6 @@ const HikerMap = (() => {
     }
   }
 
-  // Live GPS tracking
   function updateGpsPosition(lat, lon) {
     const latlng = [lat, lon];
     if (!gpsMarker) {
@@ -200,7 +192,6 @@ const HikerMap = (() => {
     if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
   }
 
-  // Find nearest track point index to given lat/lon (simple O(n) scan)
   function nearestPointIndex(lat, lon) {
     let best = 0, bestDist = Infinity;
     for (let i = 0; i < trackPoints.length; i++) {

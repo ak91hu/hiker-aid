@@ -28,7 +28,6 @@ public class GpxParserService {
         String name = firstDescendantText(root, "metadata", "name");
         String desc = firstDescendantText(root, "metadata", "desc");
 
-        // Parse track segments
         List<List<TrackPoint>> segments = new ArrayList<>();
         NodeList trkList = root.getElementsByTagName("trk");
         for (int i = 0; i < trkList.getLength(); i++) {
@@ -41,7 +40,6 @@ public class GpxParserService {
             }
         }
 
-        // Fall back to route points if no track segments found
         if (segments.isEmpty()) {
             NodeList rteList = root.getElementsByTagName("rte");
             for (int i = 0; i < rteList.getLength(); i++) {
@@ -53,7 +51,6 @@ public class GpxParserService {
             }
         }
 
-        // Waypoints
         List<WaypointData> waypoints = new ArrayList<>();
         NodeList wptList = root.getElementsByTagName("wpt");
         for (int i = 0; i < wptList.getLength(); i++) {
@@ -98,7 +95,6 @@ public class GpxParserService {
     private Integer parseIntFromDescendant(Element parent, String tagName) {
         NodeList nodes = parent.getElementsByTagName(tagName);
         if (nodes.getLength() == 0) {
-            // Try with namespace prefixes
             String[] prefixes = {"gpxtpx:", "ns3:", "gpxdata:"};
             for (String prefix : prefixes) {
                 nodes = parent.getElementsByTagName(prefix + tagName);

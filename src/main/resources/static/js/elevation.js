@@ -1,5 +1,3 @@
-/* HikerAid — Elevation profile module (Chart.js) */
-
 const HikerElevation = (() => {
   let chart = null;
   let profileData = [];
@@ -44,7 +42,6 @@ const HikerElevation = (() => {
           pointHoverRadius: 4,
           pointHoverBackgroundColor: '#74C69D',
           tension: 0.3,
-          // Segment colours by gradient value
           segment: {
             borderColor: ctx => gradientColor(gradData[ctx.p0DataIndex] || 0)
           }

@@ -1,5 +1,3 @@
-/* HikerAid Service Worker — offline-first PWA */
-
 const CACHE_NAME = 'hikerAid-v18';
 const TILE_CACHE = 'hikerAid-tiles-v2';
 
@@ -15,7 +13,6 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js',
 ];
 
-// Install — cache app shell
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -24,7 +21,6 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate — clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -36,7 +32,6 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Background sync — when network returns, message clients to flush queue
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-activities') {
     event.waitUntil(notifyClientsToSync());
@@ -50,8 +45,6 @@ async function notifyClientsToSync() {
   }
 }
 
-// Allow page to message SW (e.g. tile pre-download)
-// Replies prefer event.ports[0] (MessageChannel) for one-shot delivery; fall back to event.source
 function reply(event, data) {
   if (event.ports && event.ports[0]) event.ports[0].postMessage(data);
   else event.source?.postMessage(data);
@@ -69,16 +62,10 @@ async function estimateTileCacheBytes() {
   try {
     const cache = await caches.open(TILE_CACHE);
     const keys = await cache.keys();
-    // Rough estimate: average tile ~20KB
     return keys.length * 20 * 1024;
   } catch { return 0; }
 }
 
-// Fetch strategy:
-//   - Map tiles: cache-first with background revalidation (stale-while-revalidate),
-//                normalized cache keys so subdomain rotation does not fragment cache
-//   - API calls: network-only
-//   - Everything else: cache-first, fall back to network
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
@@ -101,7 +88,6 @@ function isTileRequest(url) {
       || url.hostname.includes('basemaps.cartocdn.com');
 }
 
-// Normalize subdomain rotation (a./b./c. -> z.) for consistent cache key
 function normalizeTileKey(url) {
   return url.replace(/^(https?:\/\/)[abc]\./, '$1z.');
 }

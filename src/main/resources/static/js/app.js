@@ -1,9 +1,6 @@
-/* HikerAid — Main application controller */
-
 (function () {
   'use strict';
 
-  // ── State ──────────────────────────────────────────────────────────────
   let routeData = null;
   let currentGpxText = null;
   let currentUser = null;
@@ -12,7 +9,6 @@
   let elevationCollapsed = false;
   let lastGpsPosition = null;
 
-  // Recording state
   let isRecording = false;
   let recordedPoints = [];
   let recordTotalDistM = 0;
@@ -23,7 +19,6 @@
   let recordSessionId = null;
   let recordPhotoCount = 0;
 
-  // ── Offline Queue (IndexedDB) ───────────────────────────────────────
   const DB_NAME = 'hikerAidOffline';
   const STORE_NAME = 'pendingActivities';
   const PHOTO_STORE = 'photos';
@@ -161,7 +156,7 @@
       if (reg && 'sync' in reg) {
         await reg.sync.register('sync-activities');
       }
-    } catch (e) { /* not supported - rely on online event */ }
+    } catch (e) {}
   }
 
   async function updateSyncBadge() {
@@ -175,7 +170,7 @@
       } else {
         btn.classList.add('hidden');
       }
-    } catch (e) { /* IndexedDB unavailable */ }
+    } catch (e) {}
   }
 
   async function syncPendingActivities() {
@@ -222,7 +217,6 @@
     setTimeout(() => toast.remove(), 3000);
   }
 
-  // ── Theme toggle ──────────────────────────────────────────────────────
   function applyTheme(theme) {
     if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
     else document.documentElement.removeAttribute('data-theme');
@@ -233,10 +227,9 @@
     const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
     const next = current === 'light' ? 'dark' : 'light';
     applyTheme(next);
-    try { localStorage.setItem('hikerAid_theme', next); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('hikerAid_theme', next); } catch (e) {}
   }
 
-  // ── DOM refs ──────────────────────────────────────────────────────────
   const screens = {
     upload:  document.getElementById('upload-screen'),
     loading: document.getElementById('loading-screen'),
@@ -253,7 +246,6 @@
     }
   }
 
-  // ── Auth ───────────────────────────────────────────────────────────────
   async function checkAuth() {
     try {
       const res = await fetch('/api/user');
@@ -277,20 +269,19 @@
         updateSyncBadge();
         if (navigator.onLine) syncPendingActivities();
       }
-    } catch (e) { /* offline or error — ignore */ }
+    } catch (e) {}
   }
 
-  // ── Activities ─────────────────────────────────────────────────────────
   async function loadActivities() {
     try {
       let activities = [];
       try {
         const res = await fetch('/api/activities');
         if (res.ok) activities = await res.json();
-      } catch (e) { /* offline - rely on pending only */ }
+      } catch (e) {}
 
       let pending = [];
-      try { pending = await getAllPending(); } catch (e) { /* IndexedDB unavailable */ }
+      try { pending = await getAllPending(); } catch (e) {}
 
       const list = document.getElementById('activities-list');
 
@@ -382,7 +373,7 @@
         card.append(mainRow, statsRow, actions);
         list.appendChild(card);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   async function viewActivity(id) {
@@ -425,7 +416,6 @@
       const res = await fetch(`/api/activities/${activityId}/comparisons`);
       if (!res.ok) return;
       const data = await res.json();
-      // Bail if the user has switched to a different route since this fetch began
       if (routeData?._activityId !== activityId) return;
       if (!data.matchCount || data.matchCount === 0) return;
 
@@ -446,7 +436,7 @@
         card.title = `vs your average across ${data.matchCount} prior attempts`;
       }
       renderComparisonMatches(data);
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   function renderComparisonMatches(data) {
@@ -480,7 +470,7 @@
       setText('us-km', s.totalKm || 0);
       setText('us-gain', s.totalGainM || 0);
       setText('us-cal', s.totalCalories || 0);
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   async function deleteActivity(id) {
@@ -488,7 +478,7 @@
     try {
       await fetch(`/api/activities/${id}`, { method: 'DELETE' });
       loadActivities();
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   async function saveActivity() {
@@ -558,7 +548,6 @@
     }
   }
 
-  // ── Friends ────────────────────────────────────────────────────────────
   let hasFriends = false;
 
   async function loadFriends() {
@@ -675,7 +664,7 @@
       }
 
       updateEmergencyButton();
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   async function addFriend() {
@@ -711,7 +700,7 @@
     try {
       await fetch(`/api/friends/accept/${id}`, { method: 'POST' });
       loadFriends();
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   async function removeFriend(id) {
@@ -719,7 +708,7 @@
     try {
       await fetch(`/api/friends/${id}`, { method: 'DELETE' });
       loadFriends();
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
   function updateEmergencyButton() {
@@ -833,7 +822,6 @@
   document.getElementById('btn-emergency').addEventListener('click', sendEmergency);
   document.getElementById('btn-emergency-friends').addEventListener('click', sendEmergency);
 
-  // ── User content tabs ─────────────────────────────────────────────────
   document.querySelectorAll('.uc-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.uc-tab').forEach(t => t.classList.remove('active'));
@@ -843,7 +831,6 @@
     });
   });
 
-  // ── File upload ────────────────────────────────────────────────────────
   const dropZone   = document.getElementById('drop-zone');
   const fileInput  = document.getElementById('file-input');
   const weightInput = document.getElementById('weight-input');
@@ -932,7 +919,7 @@
 
       try {
         localStorage.setItem('hikerAid_lastRoute', JSON.stringify(data));
-      } catch (e) { /* quota exceeded */ }
+      } catch (e) {}
 
     } catch (err) {
       showScreen('upload');
@@ -940,7 +927,6 @@
     }
   }
 
-  // ── Viewer rendering ───────────────────────────────────────────────────
   function renderViewer(data) {
     document.getElementById('route-name').textContent = data.name || 'Route';
     document.getElementById('stats-strip').classList.remove('hidden');
@@ -1004,7 +990,6 @@
     }
   }
 
-  // ── Splits rendering ───────────────────────────────────────────────────
   function renderSplits(data) {
     const tbody = document.getElementById('splits-tbody');
     const summary = document.getElementById('splits-summary');
@@ -1066,7 +1051,6 @@
     return `${m}:${String(s).padStart(2, '0')}/km`;
   }
 
-  // ── Safety rendering ────────────────────────────────────────────────────
   function renderSafety(data) {
     const sf = data.safety;
     if (!sf) {
@@ -1099,7 +1083,6 @@
     HikerMap.showSafetyMarkers(data.trackPoints, sf);
   }
 
-  // ── Recording ──────────────────────────────────────────────────────────
   document.getElementById('btn-record').addEventListener('click', startRecording);
   document.getElementById('btn-rec-stop').addEventListener('click', stopRecording);
   document.getElementById('btn-rec-analyze').addEventListener('click', analyzeRecording);
@@ -1278,7 +1261,6 @@
     showScreen('upload');
   }
 
-  // ── Photo capture ──────────────────────────────────────────────────────
   const MAX_PHOTO_DIM = 1280;
   const PHOTO_QUALITY = 0.78;
 
@@ -1384,7 +1366,6 @@
     HikerMap.showPhotoMarkers(photos, openPhotoModal);
   }
 
-  // ── Back button ────────────────────────────────────────────────────────
   document.getElementById('btn-back').addEventListener('click', () => {
     stopTracking();
     stopPlayback();
@@ -1398,12 +1379,10 @@
     showScreen('upload');
   });
 
-  // ── Save activity ─────────────────────────────────────────────────────
   const saveBtn = document.getElementById('btn-save-activity');
   saveBtn.dataset.originalHtml = saveBtn.innerHTML;
   saveBtn.addEventListener('click', saveActivity);
 
-  // ── Sync ───────────────────────────────────────────────────────────────
   document.getElementById('btn-sync').addEventListener('click', syncPendingActivities);
 
   window.addEventListener('online', () => {
@@ -1414,10 +1393,8 @@
     document.getElementById('offline-banner').classList.remove('hidden');
   });
 
-  // ── Download GPX ──────────────────────────────────────────────────────
   document.getElementById('btn-download-gpx').addEventListener('click', downloadRecordedGpx);
 
-  // ── Elevation panel toggle ─────────────────────────────────────────────
   document.getElementById('elevation-toggle').addEventListener('click', toggleElevation);
   document.getElementById('elevation-toggle').addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') toggleElevation();
@@ -1433,7 +1410,6 @@
     setTimeout(() => HikerMap.getMap()?.invalidateSize(), 250);
   }
 
-  // ── Layer switcher ─────────────────────────────────────────────────────
   document.getElementById('btn-layers').addEventListener('click', () => {
     document.getElementById('layer-panel').classList.toggle('hidden');
   });
@@ -1451,7 +1427,6 @@
     });
   });
 
-  // ── 3D terrain (MapLibre) ──────────────────────────────────────────────
   let map3d = null;
   let map3dLoaded = false;
   let is3dMode = false;
@@ -1555,7 +1530,6 @@
           'circle-stroke-color': '#fff'
         }
       });
-      // Fit to bounds
       const bounds = new maplibregl.LngLatBounds();
       for (const p of pts) bounds.extend([p[1], p[0]]);
       map3d.fitBounds(bounds, { padding: 60, pitch: 60, bearing: 0, duration: 800 });
@@ -1634,7 +1608,6 @@
 
   document.getElementById('btn-3d').addEventListener('click', toggle3dMode);
 
-  // ── Offline tile downloader ────────────────────────────────────────────
   const OFFLINE_ZOOMS = [11, 12, 13, 14, 15];
   const OFFLINE_MAX_TILES = 2500;
   const OFFLINE_CONCURRENCY = 8;
@@ -1719,7 +1692,6 @@
       if (!confirm(`Download ${tiles.length} tiles (~${estMB} MB) for the "${layer}" map at zoom ${OFFLINE_ZOOMS[0]}-${OFFLINE_ZOOMS[OFFLINE_ZOOMS.length-1]}? This will use mobile data once.`)) return;
     }
 
-    // Storage quota check
     if (navigator.storage?.estimate) {
       const est = await navigator.storage.estimate();
       const availableMB = (est.quota - est.usage) / 1024 / 1024;
@@ -1751,7 +1723,6 @@
     };
     updateProgress();
 
-    // Worker pool
     let next = 0;
     async function worker() {
       while (next < tiles.length && !offlineCancelled) {
@@ -1832,12 +1803,10 @@
   document.getElementById('btn-offline-cancel').addEventListener('click', cancelOfflineDownload);
   document.getElementById('btn-offline-clear').addEventListener('click', clearTileCache);
 
-  // Refresh cache info on any layer-panel button click (cheap)
   document.getElementById('btn-layers').addEventListener('click', () => {
     setTimeout(refreshTileCacheInfo, 0);
   });
 
-  // ── AI Tip (homepage) ──────────────────────────────────────────────────
   async function loadAiTip() {
     try {
       const res = await fetch('/api/ai-tip');
@@ -1848,14 +1817,13 @@
         card.classList.remove('hidden');
         document.getElementById('btn-ai').classList.remove('hidden');
       }
-    } catch (e) { /* offline */ }
+    } catch (e) {}
   }
 
-  // ── Route playback ─────────────────────────────────────────────────────
   let playbackRaf = null;
   let playbackStart = 0;
   let playbackElapsedAtStart = 0;
-  let playbackPos = 0; // 0..1
+  let playbackPos = 0;
   let playbackSpeed = 1;
   const PLAYBACK_BASE_DURATION_MS = 30000;
 
@@ -1925,7 +1893,6 @@
     setPlaybackSpeed(next);
   });
 
-  // ── Splits panel ───────────────────────────────────────────────────────
   document.getElementById('btn-splits').addEventListener('click', () => {
     document.getElementById('splits-panel').classList.toggle('hidden');
   });
@@ -1933,7 +1900,6 @@
     document.getElementById('splits-panel').classList.add('hidden');
   });
 
-  // ── Weather panel ──────────────────────────────────────────────────────
   let weatherCacheKey = null;
   let weatherCache = null;
 
@@ -2063,7 +2029,6 @@
     }
   }
 
-  // ── AI Analysis ────────────────────────────────────────────────────────
   document.getElementById('btn-ai').addEventListener('click', requestAiAnalysis);
   document.getElementById('btn-close-ai').addEventListener('click', () => {
     document.getElementById('ai-panel').classList.add('hidden');
@@ -2117,7 +2082,6 @@
       .replace(/<p><\/p>/g, '');
   }
 
-  // ── Export / download ──────────────────────────────────────────────────
   document.getElementById('btn-export').addEventListener('click', exportSummary);
 
   function exportSummary() {
@@ -2158,7 +2122,6 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // ── GPS Live Tracking ──────────────────────────────────────────────────
   document.getElementById('btn-track').addEventListener('click', toggleTracking);
   document.getElementById('btn-stop-track').addEventListener('click', stopTracking);
 
@@ -2221,7 +2184,6 @@
     document.getElementById('tracking-panel').classList.add('hidden');
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────
   function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
@@ -2257,11 +2219,9 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  // ── Theme toggle wiring ──────────────────────────────────────────────
   document.getElementById('btn-theme-floating')?.addEventListener('click', toggleTheme);
   document.getElementById('btn-theme-viewer')?.addEventListener('click', toggleTheme);
 
-  // ── Init ───────────────────────────────────────────────────────────────
   if (!navigator.onLine) document.getElementById('offline-banner').classList.remove('hidden');
 
   HikerMap.init();
@@ -2294,7 +2254,6 @@
       if (e.data?.type === 'SYNC_ACTIVITIES' && currentUser) syncPendingActivities();
     });
   }
-  // Poll fallback: when document becomes visible (iOS lacks background sync)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && navigator.onLine && currentUser) {
       syncPendingActivities();

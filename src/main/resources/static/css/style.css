@@ -1,7 +1,3 @@
-/* ─────────────────────────────────────────────────────────────────────────
-   HikerAid — Mobile-first, high-contrast outdoor UI
-   ───────────────────────────────────────────────────────────────────────── */
-
 :root {
   --c-bg:           #0d1f0d;
   --c-surface:      #152015;
@@ -20,7 +16,6 @@
   --c-leaflet-bg:   #0d1f0d;
   --upload-gradient: linear-gradient(160deg, #0d1f0d 0%, #152615 50%, #0d1a1a 100%);
 
-  /* Gradient track colours */
   --g-steep-down:   #0077B6;
   --g-down:         #00B4D8;
   --g-gentle-down:  #90E0EF;
@@ -50,7 +45,6 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── SCREENS ──────────────────────────────────────────────────────────── */
 .screen {
   display: none;
   position: fixed;
@@ -61,7 +55,6 @@ html, body {
 .screen.active { display: flex; flex-direction: column; }
 #viewer-screen.active { display: grid; }
 
-/* ─── UPLOAD SCREEN ─────────────────────────────────────────────────────── */
 #upload-screen {
   background: var(--upload-gradient);
   padding: 24px 16px 40px;
@@ -180,7 +173,6 @@ html, body {
 }
 .hidden { display: none !important; }
 
-/* ─── FEATURE GRID ──────────────────────────────────────────────────────── */
 .features-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -198,7 +190,6 @@ html, body {
 .feature-card h3 { font-size: 0.85rem; font-weight: 600; margin: 6px 0 4px; color: var(--c-primary-lt); }
 .feature-card p  { font-size: 0.75rem; color: var(--c-text-muted); line-height: 1.4; }
 
-/* ─── USER PANEL ──────────────────────────────────────────────────────── */
 .user-panel {
   width: 100%;
   max-width: 480px;
@@ -395,7 +386,6 @@ html, body {
   color: var(--c-danger);
 }
 
-/* ─── AI TIP CARD ──────────────────────────────────────────────────────── */
 .ai-tip-card {
   width: 100%;
   max-width: 480px;
@@ -421,7 +411,6 @@ html, body {
   line-height: 1.5;
 }
 
-/* ─── RECORD BUTTON ────────────────────────────────────────────────────── */
 .record-btn {
   width: 100%;
   max-width: 480px;
@@ -437,8 +426,6 @@ html, body {
 }
 .record-btn:hover { background: rgba(231,111,81,0.25); }
 
-
-/* ─── USER CONTENT (tabbed: Activities / Friends) ─────────────────────── */
 .user-content {
   width: 100%;
   max-width: 480px;
@@ -551,7 +538,6 @@ html, body {
   color: var(--c-text-muted);
 }
 
-/* ─── EMERGENCY BUTTON ─────────────────────────────────────────────────── */
 .emergency-btn {
   display: flex;
   align-items: center;
@@ -576,7 +562,6 @@ html, body {
   50% { box-shadow: 0 0 0 6px rgba(231,111,81,0); }
 }
 
-/* ─── ACTIVITIES ───────────────────────────────────────────────────────── */
 .activities-list { display: flex; flex-direction: column; gap: 8px; }
 .activity-card {
   background: var(--c-surface);
@@ -630,7 +615,6 @@ html, body {
 
 .footer-note { font-size: 0.75rem; color: var(--c-text-muted); text-align: center; }
 
-/* ─── LOADING SCREEN ─────────────────────────────────────────────────────── */
 #loading-screen {
   background: var(--c-bg);
   align-items: center;
@@ -649,7 +633,6 @@ html, body {
 .loading-title { font-size: 1.1rem; font-weight: 600; color: var(--c-text); }
 .loading-sub   { font-size: 0.85rem; color: var(--c-text-muted); margin-top: 8px; }
 
-/* ─── VIEWER SCREEN ──────────────────────────────────────────────────────── */
 #viewer-screen {
   grid-template-rows: var(--header-h) 1fr var(--stats-h) var(--elev-h);
   grid-template-columns: 1fr;
@@ -658,7 +641,6 @@ html, body {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-/* Header */
 .viewer-header {
   grid-row: 1;
   display: flex;
@@ -707,7 +689,6 @@ html, body {
 .header-btn:active { transform: scale(0.96); }
 .track-btn.active { background: var(--c-primary); border-color: var(--c-primary-lt); color: #fff; }
 
-/* Map */
 #map {
   grid-row: 2;
   position: relative;
@@ -715,7 +696,6 @@ html, body {
 }
 .leaflet-container { background: var(--c-leaflet-bg) !important; }
 
-/* 3D map */
 .map3d {
   grid-row: 2;
   position: relative;
@@ -730,7 +710,6 @@ html, body {
   .map3d { grid-column: 1; }
 }
 
-/* Gradient legend overlay */
 .gradient-legend {
   position: absolute;
   bottom: calc(var(--stats-h) + var(--elev-h) + 8px);
@@ -750,7 +729,6 @@ html, body {
 .legend-row { display: flex; align-items: center; gap: 5px; }
 .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
-/* Stats strip */
 .stats-strip {
   grid-row: 3;
   display: flex;
@@ -785,7 +763,6 @@ html, body {
 
 .difficulty-card .stat-value { font-size: 0.78rem; }
 
-/* Safety card states */
 .safety-card { border-width: 2px; }
 .safety-ok { background: rgba(82,183,136,0.15); border-color: #52b788; }
 .safety-ok .stat-value { color: #52b788; }
@@ -794,14 +771,12 @@ html, body {
 .safety-danger { background: rgba(231,111,81,0.2); border-color: #E76F51; }
 .safety-danger .stat-value { color: #E76F51; }
 
-/* Difficulty colours applied via JS */
 .difficulty-easy     { color: #74C69D; }
 .difficulty-moderate { color: #B7E4C7; }
 .difficulty-hard     { color: #F9C74F; }
 .difficulty-very-hard{ color: #F4A261; }
 .difficulty-extreme  { color: #E76F51; }
 
-/* GPS tracking panel */
 .tracking-panel {
   position: absolute;
   top: calc(var(--header-h) + 8px);
@@ -853,7 +828,6 @@ html, body {
 .t-stat span:first-child { font-size: 0.88rem; font-weight: 700; color: var(--c-text); }
 .t-stat span:last-child  { font-size: 0.62rem; color: var(--c-text-muted); }
 
-/* ─── ELEVATION PANEL ────────────────────────────────────────────────────── */
 .elevation-panel {
   grid-row: 4;
   display: flex;
@@ -918,7 +892,6 @@ html, body {
 #elevation-chart { display: block; width: 100% !important; height: 100% !important; }
 .elevation-panel.collapsed #elevation-chart-container { display: none; }
 
-/* ─── LAYER PANEL ─────────────────────────────────────────────────────────── */
 .layer-panel {
   position: absolute;
   top: calc(var(--header-h) + 8px);
@@ -981,7 +954,6 @@ html, body {
 .sat-thumb  { background: linear-gradient(135deg, #1a3a1a 0%, #2d5a2d 40%, #4a7c4a 70%, #6aad6a 100%); }
 .dark-thumb { background: #1a1a2e; }
 
-/* ─── OFFLINE TILES SECTION ─────────────────────────────────────────────── */
 .offline-tiles-section {
   margin-top: 14px;
   padding-top: 12px;
@@ -1054,7 +1026,6 @@ html, body {
 .offline-action-btn.danger { color: var(--c-danger); }
 .offline-action-btn.danger:hover { background: rgba(231,111,81,0.12); }
 
-/* ─── RECORDING OVERLAY ──────────────────────────────────────────────────── */
 .recording-overlay {
   position: absolute;
   bottom: 0;
@@ -1144,7 +1115,6 @@ html, body {
 .rec-photo-btn:hover { background: rgba(116,198,157,0.15); }
 .rec-photos { font-size: 0.72rem; color: var(--c-primary-lt); margin-left: 8px; }
 
-/* Photo modal */
 .photo-modal {
   position: fixed;
   inset: 0;
@@ -1193,7 +1163,6 @@ html, body {
   z-index: 1;
 }
 
-/* Photo waypoint marker */
 .photo-marker {
   width: 28px;
   height: 28px;
@@ -1209,7 +1178,6 @@ html, body {
   cursor: pointer;
 }
 
-/* ─── RECORDING COMPLETE ─────────────────────────────────────────────────── */
 .rec-complete {
   position: absolute;
   top: 50%;
@@ -1244,7 +1212,6 @@ html, body {
 .rec-action-btn.danger { color: var(--c-danger); }
 .rec-action-btn.danger:hover { background: rgba(231,111,81,0.15); }
 
-/* ─── AI PANEL ───────────────────────────────────────────────────────────── */
 .ai-btn { color: var(--c-info); }
 .ai-panel {
   position: absolute;
@@ -1307,7 +1274,6 @@ html, body {
   .ai-panel { width: 100%; left: 0; }
 }
 
-/* ─── EMERGENCY FALLBACK MODAL ────────────────────────────────────────── */
 .emergency-fallback {
   position: fixed;
   inset: 0;
@@ -1364,7 +1330,6 @@ html, body {
 .ef-primary:hover { background: #c95a40; }
 .ef-cancel { color: var(--c-text-muted); }
 
-/* ─── WEATHER PANEL ────────────────────────────────────────────────────── */
 .weather-btn { color: var(--c-info); }
 .weather-panel {
   position: absolute;
@@ -1488,7 +1453,6 @@ html, body {
   .weather-panel { width: 100%; left: 0; }
 }
 
-/* ─── SPLITS PANEL ─────────────────────────────────────────────────────── */
 .splits-btn { color: var(--c-primary-lt); }
 .splits-panel {
   position: absolute;
@@ -1588,10 +1552,8 @@ html, body {
   .splits-panel { width: 100%; left: 0; }
 }
 
-/* ─── SAVE BUTTON OVERRIDE ──────────────────────────────────────────────── */
 .save-btn.active, .save-btn:disabled { background: var(--c-primary); color: #fff; border-color: var(--c-primary-lt); }
 
-/* ─── LEAFLET OVERRIDES ──────────────────────────────────────────────────── */
 .leaflet-bar a, .leaflet-bar a:hover {
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -1610,7 +1572,6 @@ html, body {
 .waypoint-popup-name { font-weight: 600; font-size: 0.9rem; color: var(--c-primary-lt); }
 .waypoint-popup-desc { color: var(--c-text-muted); margin-top: 2px; }
 
-/* Custom GPS position marker */
 .gps-marker {
   width: 18px; height: 18px;
   background: #3B9AE1;
@@ -1619,7 +1580,6 @@ html, body {
   box-shadow: 0 0 0 4px rgba(59,154,225,0.3);
 }
 
-/* ─── LIGHT THEME ─────────────────────────────────────────────────────────── */
 [data-theme="light"] {
   --c-bg:           #f4f8f2;
   --c-surface:      #ffffff;
@@ -1692,7 +1652,6 @@ html, body {
 }
 [data-theme="light"] .ai-loading, [data-theme="light"] .uc-empty { color: var(--c-text-muted); }
 
-/* ─── THEME TOGGLE ────────────────────────────────────────────────────────── */
 .theme-toggle-floating {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 14px);
@@ -1722,7 +1681,6 @@ html, body {
 [data-theme="light"] .theme-icon-sun { display: none; }
 [data-theme="light"] .theme-icon-moon { display: block; }
 
-/* ─── APP TOAST / RESUME BANNER ──────────────────────────────────────────── */
 .app-toast {
   position: fixed;
   bottom: 16px;
@@ -1742,7 +1700,6 @@ html, body {
 .app-toast.clickable { cursor: pointer; }
 [data-theme="light"] .app-toast { color: var(--c-primary); box-shadow: 0 4px 16px rgba(20,45,30,0.18); }
 
-/* ─── DESKTOP ADJUSTMENTS ─────────────────────────────────────────────────── */
 @media (min-width: 768px) {
   #viewer-screen {
     grid-template-rows: var(--header-h) 1fr var(--elev-h);

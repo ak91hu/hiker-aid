@@ -7,10 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Serves PWA icons — falls back to the SVG for browsers that accept it,
- * so the app works without pre-generated PNGs.
- */
 @RestController
 public class IconController {
 

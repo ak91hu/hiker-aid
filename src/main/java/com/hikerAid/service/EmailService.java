@@ -29,8 +29,6 @@ public class EmailService {
         return resendApiKey != null && !resendApiKey.isBlank();
     }
 
-    // ── Sending via Resend ──────────────────────────────────────────────
-
     public void sendFriendInvite(String toEmail, String inviterName) throws Exception {
         String subject = inviterName + " wants you on their hiking team!";
         String body = "Hey there,\n\n"

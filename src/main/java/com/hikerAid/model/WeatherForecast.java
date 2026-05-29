@@ -28,7 +28,7 @@ public record WeatherForecast(
     ) {}
 
     public record WeatherRisk(
-        String level,    // OK, CAUTION, DANGER
+        String level,
         String summary
     ) {}
 }

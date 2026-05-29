@@ -100,6 +100,11 @@ hikerAid/
   `index.html`. Bump with every UI release.
 - **Service worker cache version.** `CACHE_NAME = 'hikerAid-vN'` in `sw.js`.
   Bump with every shell change.
+- **Comment-free source.** Java/JS/CSS are kept free of explanatory comments;
+  intent lives in this `docs/` tree and in `CLAUDE.md`, not inline. The only
+  intentional exceptions are the security-critical `// XXE prevention` marker in
+  `GpxParserService` and the `// package-private for unit testing` markers on
+  test-visible methods.
 - **No new MD files unless asked.** This project ships docs in `docs/`; don't
   scatter ad-hoc notes elsewhere.
 

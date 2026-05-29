@@ -71,7 +71,6 @@ public class FriendController {
             }
         }
 
-        // outgoing pending invites to non-registered users
         List<FriendInviteEntity> invites = friendInviteRepository.findAll().stream()
                 .filter(i -> i.getInviter().getId().equals(user.getId()))
                 .toList();

@@ -167,7 +167,6 @@ public class RouteAnalysisService {
             if (e1 != null && e2 != null) slope = (e2 - e1) / segDist;
 
             double segMinutes = (segDist / 1000.0 / toblerSpeed(slope)) * 60.0 / paceFactor;
-            // Filter GPS noise: ignore segment elevation diffs below ~0.5m
             double segGain = 0, segLoss = 0;
             if (e1 != null && e2 != null) {
                 double diff = e2 - e1;
@@ -211,8 +210,6 @@ public class RouteAnalysisService {
         }
         return out;
     }
-
-    // ── Safety analysis ─────────────────────────────────────────────────────
 
     private SafetyAnalysis computeSafety(
             List<TrackPoint> points, double[] cumDist,
@@ -341,8 +338,6 @@ public class RouteAnalysisService {
         return (movingMinutes / 60.0) * 10;
     }
 
-    // ── Elevation ───────────────────────────────────────────────────────────
-
     private double[] computeElevationGainLoss(List<TrackPoint> points) {
         double totalAscent = 0, totalDescent = 0;
         double accumUp = 0, accumDown = 0;
@@ -371,8 +366,6 @@ public class RouteAnalysisService {
         return new double[]{totalAscent, totalDescent};
     }
 
-    // ── Time ────────────────────────────────────────────────────────────────
-
     private double toblerSpeed(double slope) {
         double speed = TOBLER_BASE_SPEED * Math.exp(-3.5 * Math.abs(slope + 0.05));
         return Math.max(0.3, Math.min(8.0, speed));
@@ -397,8 +390,6 @@ public class RouteAnalysisService {
         return Math.round(movingMinutes + (movingMinutes / 60.0) * 10);
     }
 
-    // ── Scoring ─────────────────────────────────────────────────────────────
-
     private int difficultyScore(double distKm, double ascent, double maxGrad) {
         double d = Math.min(distKm * 2.0, 40);
         double a = Math.min(ascent / 50.0, 40);
@@ -415,7 +406,6 @@ public class RouteAnalysisService {
     }
 
     private double estimateCalories(double weightKg, double heightCm, double distKm, double ascentM, double descentM, long movingMinutes) {
-        // Stride efficiency: taller hikers are ~5% more efficient per 10cm above average
         double heightFactor = 1.0 - (heightCm - 170) * 0.005;
         heightFactor = Math.max(0.85, Math.min(1.15, heightFactor));
 
@@ -423,14 +413,11 @@ public class RouteAnalysisService {
         double climb = ascentM * weightKg * 0.01;
         double descent = descentM * weightKg * 0.003;
 
-        // BMR during activity (simplified Mifflin-St Jeor, gender-neutral, ~age 35)
         double bmrPerHour = (10 * weightKg + 6.25 * heightCm - 200) / 24.0;
         double bmrDuringHike = bmrPerHour * (movingMinutes / 60.0);
 
         return flat + climb + descent + bmrDuringHike;
     }
-
-    // ── Output builders ─────────────────────────────────────────────────────
 
     private List<double[]> buildTrackPoints(List<TrackPoint> points) {
         int step = Math.max(1, points.size() / MAX_TRACK_POINTS);
@@ -513,8 +500,6 @@ public class RouteAnalysisService {
         }
         return out;
     }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private List<TrackPoint> flatten(List<List<TrackPoint>> segments) {
         List<TrackPoint> all = new ArrayList<>();
