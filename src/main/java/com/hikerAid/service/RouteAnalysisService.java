@@ -291,8 +291,22 @@ public class RouteAnalysisService {
             round2(cumDist[turnaroundFullIdx] / 1000.0),
             turnaroundTrackIdx,
             round2(cumDist[pnrFullIdx] / 1000.0),
-            pnrTrackIdx
+            pnrTrackIdx,
+            sunsetMinutes,
+            SAFETY_BUFFER_MINUTES,
+            downsampleMinutes(forwardMin, trackStep),
+            downsampleMinutes(reverseMin, trackStep)
         );
+    }
+
+    private int[] downsampleMinutes(double[] vals, int step) {
+        int n = vals.length;
+        List<Integer> out = new ArrayList<>(n / step + 2);
+        for (int i = 0; i < n; i += step) out.add((int) Math.round(vals[i]));
+        if ((n - 1) % step != 0) out.add((int) Math.round(vals[n - 1]));
+        int[] arr = new int[out.size()];
+        for (int i = 0; i < arr.length; i++) arr[i] = out.get(i);
+        return arr;
     }
 
     private int estimateSunsetMinutes(double latDeg, int dayOfYear) {

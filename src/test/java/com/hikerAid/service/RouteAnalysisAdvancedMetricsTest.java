@@ -172,6 +172,69 @@ class RouteAnalysisAdvancedMetricsTest {
             "1 km with +80 m should have ~8% avg gradient, got " + avgGrad);
     }
 
+    // ---- Live turn-back data (cumulative time arrays) ----------------------
+
+    @Test
+    void cumulativeTimeArraysAlignWithTrackPoints() {
+        GpxData data = makeRoute(
+            pt(47.00, 19.00, 200.0),
+            pt(47.02, 19.00, 400.0),
+            pt(47.04, 19.00, 600.0),
+            pt(47.06, 19.00, 500.0)
+        );
+        AnalysisResult r = service.analyzeWithWeight(data, 70, 170, 3, 8, 0);
+        SafetyAnalysis sf = r.safety();
+        assertNotNull(sf.cumForwardMinutes());
+        assertNotNull(sf.cumReturnMinutes());
+        assertEquals(r.trackPoints().size(), sf.cumForwardMinutes().length,
+            "Forward time array must align 1:1 with downsampled track points");
+        assertEquals(r.trackPoints().size(), sf.cumReturnMinutes().length,
+            "Return time array must align 1:1 with downsampled track points");
+    }
+
+    @Test
+    void cumulativeTimeArraysStartAtZeroAndIncreaseMonotonically() {
+        GpxData data = makeRoute(
+            pt(47.00, 19.00, 200.0),
+            pt(47.03, 19.00, 450.0),
+            pt(47.06, 19.00, 700.0)
+        );
+        SafetyAnalysis sf = service.analyzeWithWeight(data, 70, 170, 3, 8, 0).safety();
+        int[] fwd = sf.cumForwardMinutes();
+        int[] ret = sf.cumReturnMinutes();
+        assertEquals(0, fwd[0], "Forward time at the start is zero");
+        assertEquals(0, ret[0], "Return time at the start is zero");
+        for (int i = 1; i < fwd.length; i++) {
+            assertTrue(fwd[i] >= fwd[i - 1], "Forward time must be non-decreasing");
+            assertTrue(ret[i] >= ret[i - 1], "Return time must be non-decreasing");
+        }
+    }
+
+    @Test
+    void forwardArrayEndMatchesPersonalizedMovingTime() {
+        GpxData data = makeRoute(
+            pt(47.00, 19.00, 200.0),
+            pt(47.03, 19.00, 450.0),
+            pt(47.06, 19.00, 700.0)
+        );
+        SafetyAnalysis sf = service.analyzeWithWeight(data, 70, 170, 3, 8, 0).safety();
+        int[] fwd = sf.cumForwardMinutes();
+        assertEquals(sf.personalizedMovingMinutes(), fwd[fwd.length - 1], 1,
+            "Last forward entry should equal total personalized moving time");
+    }
+
+    @Test
+    void sunsetAndBufferAreExposedForLiveCountdown() {
+        GpxData data = makeRoute(
+            pt(47.00, 19.00, 200.0),
+            pt(47.02, 19.00, 300.0)
+        );
+        SafetyAnalysis sf = service.analyzeWithWeight(data, 70, 170, 3, 8, 0).safety();
+        assertEquals(30, sf.safetyBufferMinutes());
+        assertTrue(sf.sunsetMinutes() > 0 && sf.sunsetMinutes() < 24 * 60,
+            "Sunset should be a valid minute-of-day, got " + sf.sunsetMinutes());
+    }
+
     // ---- Helpers -----------------------------------------------------------
 
     private TrackPoint pt(double lat, double lon, double ele) {

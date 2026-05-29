@@ -6,6 +6,8 @@
   let currentUser = null;
   let gpsWatchId = null;
   let isTracking = false;
+  let trackStartTime = null;
+  let trackStartIdx = 0;
   let elevationCollapsed = false;
   let lastGpsPosition = null;
 
@@ -263,6 +265,7 @@
         }
         document.getElementById('btn-save-activity').classList.remove('hidden');
         document.getElementById('user-content').classList.remove('hidden');
+        document.getElementById('btn-emergency-fab').classList.remove('hidden');
         loadActivities();
         loadUserStats();
         loadFriends();
@@ -756,6 +759,13 @@
     document.getElementById('emergency-fallback').classList.add('hidden');
   });
 
+  function setEmergencyBusy(busy) {
+    document.querySelectorAll('.emergency-trigger').forEach(b => {
+      b.disabled = busy;
+      b.classList.toggle('sending', busy);
+    });
+  }
+
   async function sendEmergency() {
     if (!confirm('Send an EMERGENCY alert with your current location to ALL your hiking friends?')) return;
 
@@ -764,19 +774,16 @@
       return;
     }
 
-    const btn = document.getElementById('btn-emergency');
-    btn.disabled = true;
+    setEmergencyBusy(true);
 
     async function doSend(pos) {
-      btn.querySelector('span').textContent = 'Sending alerts...';
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const acc = pos.coords.accuracy || 0;
 
       if (!navigator.onLine) {
         showEmergencyFallback(lat, lon, acc, 'You are offline. Send your location via SMS instead.');
-        btn.disabled = false;
-        btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+        setEmergencyBusy(false);
         return;
       }
 
@@ -795,20 +802,19 @@
       } catch (e) {
         showEmergencyFallback(lat, lon, acc, 'Could not reach the server. Send your location via SMS instead.');
       }
-      btn.disabled = false;
-      btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+      setEmergencyBusy(false);
     }
 
     if (lastGpsPosition && (Date.now() - lastGpsPosition.timestamp) < 30000) {
+      showToast('Sending alert...');
       await doSend(lastGpsPosition);
     } else {
-      btn.querySelector('span').textContent = 'Getting location...';
+      showToast('Getting your location...');
       navigator.geolocation.getCurrentPosition(
         async (pos) => { await doSend(pos); },
         (err) => {
           alert('Could not get your location: ' + err.message);
-          btn.disabled = false;
-          btn.querySelector('span').textContent = 'Emergency - Alert Friends';
+          setEmergencyBusy(false);
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       );
@@ -821,6 +827,7 @@
   });
   document.getElementById('btn-emergency').addEventListener('click', sendEmergency);
   document.getElementById('btn-emergency-friends').addEventListener('click', sendEmergency);
+  document.getElementById('btn-emergency-fab').addEventListener('click', sendEmergency);
 
   document.querySelectorAll('.uc-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -2138,6 +2145,7 @@
     if (!routeData || !routeData.trackPoints || routeData.trackPoints.length === 0) return;
 
     isTracking = true;
+    trackStartTime = null;
     document.getElementById('btn-track').classList.add('active');
     document.getElementById('tracking-panel').classList.remove('hidden');
 
@@ -2157,6 +2165,8 @@
     const pts = routeData.trackPoints;
     const nearestIdx = HikerMap.nearestPointIndex(lat, lon);
 
+    if (trackStartTime === null) { trackStartTime = Date.now(); trackStartIdx = nearestIdx; }
+
     const progressPct = pts.length > 1 ? Math.round((nearestIdx / (pts.length - 1)) * 100) : 0;
 
     const remainingPts = pts.slice(nearestIdx);
@@ -2172,16 +2182,99 @@
     setText('t-remaining-dist', `${remainKm.toFixed(1)} km`);
     setText('t-remaining-time', formatTime(remainMinutes));
     setText('t-current-ele', altM != null ? `${Math.round(altM)} m` : '—');
+
+    updateTurnBack(nearestIdx);
+  }
+
+  function livePaceFactor(fwd, nearestIdx) {
+    if (trackStartTime === null) return 1;
+    const elapsedMin = (Date.now() - trackStartTime) / 60000;
+    const plannedSpan = fwd[nearestIdx] - (fwd[trackStartIdx] || 0);
+    if (plannedSpan <= 3 || elapsedMin <= 1) return 1;
+    return Math.max(0.5, Math.min(3, elapsedMin / plannedSpan));
+  }
+
+  function clockFromNow(minFromNow) {
+    const d = new Date(Date.now() + minFromNow * 60000);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function updateTurnBack(nearestIdx) {
+    const banner = document.getElementById('t-turnback-banner');
+    const sf = routeData && routeData.safety;
+    const fwd = sf && sf.cumForwardMinutes;
+    const ret = sf && sf.cumReturnMinutes;
+    if (!sf || !fwd || !ret || sf.sunsetMinutes == null || nearestIdx < 0 || nearestIdx >= fwd.length) {
+      banner.classList.add('hidden');
+      setText('t-daylight', '—');
+      setText('t-turnback', '—');
+      return;
+    }
+
+    const n = fwd.length;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    const cutoff = sf.sunsetMinutes - (sf.safetyBufferMinutes || 30);
+    const daylightLeft = cutoff - nowMin;
+
+    const live = livePaceFactor(fwd, nearestIdx);
+    const timeToFinish = (fwd[n - 1] - fwd[nearestIdx]) * live;
+    const timeToReturn = ret[nearestIdx] * live;
+
+    setText('t-remaining-time', formatTime(Math.round(timeToFinish)));
+    setText('t-daylight', daylightLeft > 0 ? formatTime(Math.round(daylightLeft)) : '0m');
+
+    banner.classList.remove('hidden', 'safety-ok', 'safety-caution', 'safety-danger');
+
+    if (daylightLeft <= 0) {
+      banner.classList.add('safety-danger');
+      banner.textContent = 'Past the safe daylight cutoff. Use a headlamp and descend the fastest safe way.';
+      setText('t-turnback', 'now');
+      return;
+    }
+
+    if (timeToFinish <= daylightLeft) {
+      banner.classList.add('safety-ok');
+      banner.textContent = `On track to finish with ${formatTime(Math.round(daylightLeft - timeToFinish))} of daylight to spare.`;
+      setText('t-turnback', 'not needed');
+      return;
+    }
+
+    if (timeToReturn > daylightLeft) {
+      banner.classList.add('safety-danger');
+      banner.textContent = 'Not enough daylight to return to the start. Descend now or call for help.';
+      setText('t-turnback', 'now');
+      return;
+    }
+
+    let lastSafe = nearestIdx;
+    for (let j = nearestIdx; j < n; j++) {
+      const cost = (fwd[j] - fwd[nearestIdx]) * live + ret[j] * live;
+      if (cost <= daylightLeft) lastSafe = j; else break;
+    }
+    const minsToTurn = Math.max(0, (fwd[lastSafe] - fwd[nearestIdx]) * live);
+
+    if (minsToTurn < 2) {
+      banner.classList.add('safety-danger');
+      banner.textContent = 'Turn back now to reach the start before dark.';
+      setText('t-turnback', 'now');
+    } else {
+      banner.classList.add('safety-caution');
+      banner.textContent = `Turn back by ${clockFromNow(minsToTurn)} to reach the start before dark.`;
+      setText('t-turnback', `by ${clockFromNow(minsToTurn)}`);
+    }
   }
 
   function stopTracking() {
     if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
     isTracking = false;
+    trackStartTime = null;
     lastGpsPosition = null;
     HikerMap.clearGpsMarker();
     document.getElementById('btn-track').classList.remove('active');
     document.getElementById('tracking-panel').classList.add('hidden');
+    document.getElementById('t-turnback-banner').classList.add('hidden');
   }
 
   function setText(id, value) {

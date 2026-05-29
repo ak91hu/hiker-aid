@@ -73,9 +73,33 @@ buffer). Marked on the map with a yellow icon.
 Where remaining forward time becomes shorter than the time to retrace your
 steps. Marked with a red exclamation icon.
 
+### Live Turn-Back Guidance
+The turnaround math above is computed at planning time; during a GPS-tracked
+hike the live-tracking panel makes it dynamic. From the hiker's actual position
+(nearest track point), measured pace versus plan, and the current wall clock, it
+continuously recomputes:
+
+- **Daylight left** until the sunset-minus-buffer cutoff.
+- **Est. finish** time to complete the route at the current measured pace.
+- **Turn back** — a traffic-light banner that reads one of:
+  - *green* "on track to finish with N of daylight to spare",
+  - *amber* "turn back by HH:MM to reach the start before dark" (the latest
+    safe turnaround projected from the current position), or
+  - *red* "turn back now" / "not enough daylight to return — descend now".
+
+Measured pace is derived from elapsed time versus the planned cumulative time to
+the current point (clamped to 0.5x-3x), so the warnings tighten automatically if
+the hiker falls behind. The computation is fully client-side using the
+`cumForwardMinutes` / `cumReturnMinutes` arrays from `/api/analyze`, so it keeps
+working with no signal.
+
 ### Emergency Alert
-- Visible in the live-tracking panel and friends list when you have at least
-  one accepted friend.
+- **Always-on SOS button.** A red floating SOS button appears on every screen
+  the moment you sign in (it does not wait for friends or a route) — emergency
+  sending is the app's primary goal, so the trigger is always one tap away. It
+  is also surfaced in the live-tracking panel and friends list.
+- With no accepted friends the alert has no email recipients, so it drops
+  straight to the SMS/Maps fallback below — still delivering your coordinates.
 - Sends current GPS coordinates (7-decimal lat/lon, accuracy in meters, Google
   Maps deep-link) to each friend's email via Resend.
 - **Offline fallback**: if the server is unreachable, opens a modal with an

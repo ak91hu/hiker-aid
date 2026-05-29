@@ -54,7 +54,9 @@ Response shape (`AnalysisResult`):
     "sunsetEstimate": "19:45", "availableMinutes": 540,
     "marginMinutes": 230, "daylightSufficient": true,
     "turnaroundDistanceKm": 6.8, "turnaroundTrackIndex": 543,
-    "pointOfNoReturnKm": 6.2, "pointOfNoReturnTrackIndex": 487
+    "pointOfNoReturnKm": 6.2, "pointOfNoReturnTrackIndex": 487,
+    "sunsetMinutes": 1185, "safetyBufferMinutes": 30,
+    "cumForwardMinutes": [0, 4, 9, ...], "cumReturnMinutes": [0, 3, 7, ...]
   },
   "splits": [
     {"km": 1, "minutes": 18, "elevationGainM": 45, "elevationLossM": 5, "avgGradientPct": 4.0},
@@ -62,6 +64,13 @@ Response shape (`AnalysisResult`):
   ]
 }
 ```
+
+`sunsetMinutes` (minute-of-day of estimated sunset) and the index-aligned
+`cumForwardMinutes` / `cumReturnMinutes` arrays (cumulative personalized moving
+minutes from the start to, and back from, each downsampled track point) power
+the **live turn-back guidance** during GPS tracking — the client recomputes the
+daylight margin from the hiker's real position, measured pace, and wall clock
+without any further server call.
 
 ### `GET /api/weather?lat=X&lon=Y`
 Open-Meteo weather forecast for a coordinate. Cached server-side for 1 hour

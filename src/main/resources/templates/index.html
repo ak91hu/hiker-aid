@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=18">
+    <link rel="stylesheet" href="/css/style.css?v=20">
     <script>
       // Apply theme before paint to avoid flash
       (function () {
@@ -115,7 +115,7 @@
                 <h3 class="friends-sub-title">Invited (not yet registered)</h3>
                 <div id="friends-invites-list" class="friends-list"></div>
             </div>
-            <button id="btn-emergency-friends" class="emergency-btn hidden">
+            <button id="btn-emergency-friends" class="emergency-btn emergency-trigger hidden">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                     <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -378,13 +378,16 @@
             <span class="tracking-title">Live Tracking</span>
             <button id="btn-stop-track" class="stop-btn">Stop</button>
         </div>
+        <div id="t-turnback-banner" class="t-turnback hidden"></div>
         <div class="tracking-stats">
             <div class="t-stat"><span id="t-progress">0%</span><span>Complete</span></div>
             <div class="t-stat"><span id="t-remaining-dist">—</span><span>Remaining</span></div>
-            <div class="t-stat"><span id="t-remaining-time">—</span><span>Est. left</span></div>
             <div class="t-stat"><span id="t-current-ele">—</span><span>Elevation</span></div>
+            <div class="t-stat"><span id="t-remaining-time">—</span><span>Est. finish</span></div>
+            <div class="t-stat"><span id="t-daylight">—</span><span>Daylight left</span></div>
+            <div class="t-stat"><span id="t-turnback">—</span><span>Turn back</span></div>
         </div>
-        <button id="btn-emergency" class="emergency-btn hidden" title="Send emergency alert to friends">
+        <button id="btn-emergency" class="emergency-btn emergency-trigger hidden" title="Send emergency alert to friends">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -469,6 +472,17 @@
             <button id="ef-close" class="ef-action ef-cancel">Close</button>
         </div>
     </div>
+
+    <!-- Global emergency button: always visible while signed in, on every screen -->
+    <button id="btn-emergency-fab" class="emergency-fab emergency-trigger hidden"
+            title="Send an emergency alert with your location"
+            aria-label="Send an emergency alert with your location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span class="emergency-fab-label">SOS</span>
+    </button>
 
     <!-- Weather panel -->
     <div id="weather-panel" class="weather-panel hidden">
@@ -556,6 +570,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script src="/js/map.js?v=18"></script>
 <script src="/js/elevation.js?v=18"></script>
-<script src="/js/app.js?v=18"></script>
+<script src="/js/app.js?v=20"></script>
 </body>
 </html>

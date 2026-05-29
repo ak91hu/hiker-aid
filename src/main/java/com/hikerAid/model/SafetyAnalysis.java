@@ -12,5 +12,9 @@ public record SafetyAnalysis(
     double turnaroundDistanceKm,
     int turnaroundTrackIndex,
     double pointOfNoReturnKm,
-    int pointOfNoReturnTrackIndex
+    int pointOfNoReturnTrackIndex,
+    int sunsetMinutes,
+    int safetyBufferMinutes,
+    int[] cumForwardMinutes,
+    int[] cumReturnMinutes
 ) {}
