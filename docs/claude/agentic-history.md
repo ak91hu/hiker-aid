@@ -4,6 +4,32 @@ A running log of major Claude-driven changes to HikerAid, with the
 lessons that surfaced. Useful for future sessions (to avoid re-treading
 the same ground) and for humans curious about how the project evolved.
 
+## 2026-05-29 — Comment-free refactor, live turn-back, always-on SOS, project skills
+
+Stripped all explanatory comments from `src/main` (keeping the XXE and
+test-visibility markers), added **live turn-back guidance** to GPS tracking,
+made the **emergency SOS button always-on** for signed-in users, fixed a false
+"no internet" emergency report, and committed three project skills
+(`/bump-cache-version`, `/strip-comments`, `/release-checklist`).
+
+**Lessons.**
+- **Don't strip comments with naive regex.** A string- and regex-aware
+  character scanner (`/strip-comments`) is the only safe way — a blunt regex
+  would have mangled `https://` URLs in strings and JS `/regex/` literals. The
+  scanner is idempotent, so it doubles as a guard in `/release-checklist`.
+- **Extend the data, compute on the client.** Live turn-back reuses the
+  forward/reverse Tobler arrays already computed for `computeSafety`; the server
+  just downsamples and returns them aligned to `trackPoints`, and the browser
+  does the per-fix recompute — no new endpoint, works offline.
+- **`navigator.onLine` is a liar.** It reported a notebook as offline and the
+  emergency flow bailed to an SMS modal titled "No internet" while the server
+  was perfectly reachable. Fix: always attempt the request; only the genuine
+  `fetch` failure path mentions connectivity, and the fallback title is now set
+  from the real cause (no contacts / alerts unavailable / unreachable).
+- **Bump the cache version every frontend change.** Did it four times by hand
+  (v18→v21) before extracting it into a skill — exactly the repetitive,
+  easy-to-forget task a skill should own.
+
 ## 2026-05-28 — Phase 1-3: ten features in one sitting
 
 Added a light theme, richer analytics (VAM/GAP/splits), route playback,

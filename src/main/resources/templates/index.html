@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=20">
+    <link rel="stylesheet" href="/css/style.css?v=21">
     <script>
       // Apply theme before paint to avoid flash
       (function () {
@@ -463,8 +463,8 @@
     <!-- Emergency fallback modal -->
     <div id="emergency-fallback" class="emergency-fallback hidden">
         <div class="ef-box">
-            <h3 class="ef-title">No internet - use SMS</h3>
-            <p class="ef-sub" id="ef-sub">Server unreachable. Send your location via your phone's SMS app instead.</p>
+            <h3 class="ef-title" id="ef-title">Send emergency via SMS</h3>
+            <p class="ef-sub" id="ef-sub">Send your location via your phone's SMS app instead.</p>
             <div class="ef-coords" id="ef-coords"></div>
             <a id="ef-sms" class="ef-action ef-primary" href="#">Open SMS app</a>
             <a id="ef-maps" class="ef-action" href="#" target="_blank" rel="noopener">Open in Google Maps</a>
@@ -570,6 +570,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script src="/js/map.js?v=18"></script>
 <script src="/js/elevation.js?v=18"></script>
-<script src="/js/app.js?v=20"></script>
+<script src="/js/app.js?v=21"></script>
 </body>
 </html>

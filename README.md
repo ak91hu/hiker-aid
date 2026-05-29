@@ -24,7 +24,7 @@ photo waypoints, and AI coaching.
 
 | Pillar | Highlights |
 |---|---|
-| **Safety** | Sunset estimate · 30 min buffer · turnaround point · point of no return · **live turn-back countdown** that recomputes from your real pace and the clock while tracking · emergency alerts to friends (with offline SMS fallback) |
+| **Safety** | Sunset estimate · 30 min buffer · turnaround point · point of no return · **live turn-back countdown** that recomputes from your real pace and the clock while tracking · **always-on SOS button** on every screen once signed in · emergency alerts to friends (with offline SMS fallback) |
 | **Analytics** | Tobler time scaled to your fitness · VAM · grade-adjusted pace · per-km splits · route comparison vs your past attempts with PR badge |
 | **Maps** | Gradient-coloured track · interactive elevation profile · 4 base layers (Streets/Topo/Satellite/Dark) · **3D terrain** (MapLibre + Mapzen DEM) · animated route playback |
 | **Offline** | Service-worker app shell · stale-while-revalidate tile cache · **download tiles for any route in advance** · background-sync of offline activity saves |
@@ -72,6 +72,7 @@ via `render.yaml`, and redeploys on every push to `main`.
 | Local dev, build, tests | [`docs/development.md`](docs/development.md) |
 | Deploy to Render / Docker | [`docs/deployment.md`](docs/deployment.md) |
 | Working with Claude Code | [`docs/claude/working-with-claude.md`](docs/claude/working-with-claude.md) |
+| Claude skills & hooks | [`docs/claude/skills-and-hooks.md`](docs/claude/skills-and-hooks.md) (project skills live in [`.claude/skills/`](.claude/skills)) |
 | Claude session context | [`CLAUDE.md`](CLAUDE.md) (auto-loaded by Claude Code) |
 
 ---

@@ -6,7 +6,9 @@ data/
 .idea/
 *.iml
 .DS_Store
-.claude/
+# Claude Code: ignore local/personal config, but keep project skills
+.claude/*
+!.claude/skills/
 
 # Secrets — never commit
 application-local.properties

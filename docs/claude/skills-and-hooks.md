@@ -46,11 +46,40 @@ new external API integrations.
 - `/loop` — recurring task scheduler
 - `/schedule` — cron-style remote agents
 
+## Project skills (`.claude/skills/`)
+
+Custom skills committed to this repo. Invoke with `/skill-name`.
+
+### `/bump-cache-version`
+
+Increments the PWA cache-buster after a frontend change: the `?v=N` query
+string on `style.css` and `app.js` in `index.html`, plus `CACHE_NAME` in
+`sw.js`, kept in sync. Run it whenever you edit `index.html`,
+`static/css/style.css`, any `static/js/*.js`, or `static/sw.js` — otherwise
+returning visitors keep the stale service-worker cache.
+
+### `/strip-comments`
+
+Enforces the comment-free `src/main` convention. Bundles
+`strip_comments.py`, a character-stateful stripper that removes Java/JS/CSS
+comments without touching string/template/regex content, preserves the
+`XXE prevention` and `package-private for unit testing` markers, and leaves
+`src/test` alone. Idempotent. Run after writing or editing source, then
+`mvn -q clean test`.
+
+### `/release-checklist`
+
+Pre-push gate: runs `mvn -q clean test`, `node --check` on changed JS,
+reminds you to `/bump-cache-version` for asset edits and `/strip-comments`
+for new source, and to review the diff. It never pushes — pushing to `main`
+auto-deploys to Render and requires an explicit user request.
+
 ## Conventions for new skills
 
-If you write a custom skill for this project, drop the `.md` file in
-`~/.claude/skills/` (user) or `.claude/skills/` (project). Document it
-here, including:
+Drop the skill folder in `.claude/skills/<name>/` (project) or
+`~/.claude/skills/` (user). Each needs a `SKILL.md` with `name` and
+`description` frontmatter; bundle any helper scripts alongside it. Document
+it in this file, including:
 - The exact slash command
 - What it expects in the conversation context
 - What kind of output it produces (text? JSON? edits?)

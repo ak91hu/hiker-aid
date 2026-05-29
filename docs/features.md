@@ -98,13 +98,21 @@ working with no signal.
   the moment you sign in (it does not wait for friends or a route) — emergency
   sending is the app's primary goal, so the trigger is always one tap away. It
   is also surfaced in the live-tracking panel and friends list.
-- With no accepted friends the alert has no email recipients, so it drops
-  straight to the SMS/Maps fallback below — still delivering your coordinates.
 - Sends current GPS coordinates (7-decimal lat/lon, accuracy in meters, Google
-  Maps deep-link) to each friend's email via Resend.
-- **Offline fallback**: if the server is unreachable, opens a modal with an
-  `sms:?body=...` deep-link, Google Maps link, and "Copy emergency message"
-  — works on cellular voice/SMS where data is dead.
+  Maps deep-link) to each accepted friend's email via Resend.
+- **The send always attempts the server first** and reacts to the real result —
+  it never pre-judges connectivity from `navigator.onLine` (which is unreliable
+  on laptops and was the cause of false "no internet" reports).
+- **Cause-aware fallback modal.** When the alert can't be emailed, a modal opens
+  with an `sms:?body=...` deep-link, a Google Maps link, and "Copy emergency
+  message", titled by the actual reason:
+  - *No emergency contacts* — you have no accepted friends to email yet.
+  - *Alerts unavailable* — the server has no `RESEND_API_KEY`.
+  - *Server unreachable* / *No internet* — the request genuinely failed (the
+    latter only when the browser also reports offline).
+
+  The SMS path works on cellular voice/SMS where data is dead, and covers the
+  no-friends case too — your coordinates still get out.
 
 ## Map & Visualization
 

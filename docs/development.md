@@ -97,14 +97,14 @@ hikerAid/
 - **Java records for API DTOs.** They serialize cleanly with Jackson 3.
 - **CSS variables for theming.** Light theme overrides via `[data-theme="light"]`.
 - **Cache busting.** `?v=N` query string on `/js/*.js` and `/css/*.css` in
-  `index.html`. Bump with every UI release.
-- **Service worker cache version.** `CACHE_NAME = 'hikerAid-vN'` in `sw.js`.
-  Bump with every shell change.
+  `index.html`, mirrored by `CACHE_NAME = 'hikerAid-vN'` in `sw.js`. Bump both
+  together with every UI release — the `/bump-cache-version` skill does this.
 - **Comment-free source.** Java/JS/CSS are kept free of explanatory comments;
   intent lives in this `docs/` tree and in `CLAUDE.md`, not inline. The only
   intentional exceptions are the security-critical `// XXE prevention` marker in
   `GpxParserService` and the `// package-private for unit testing` markers on
-  test-visible methods.
+  test-visible methods. The `/strip-comments` skill enforces this; `src/test`
+  is exempt and keeps its comments.
 - **No new MD files unless asked.** This project ships docs in `docs/`; don't
   scatter ad-hoc notes elsewhere.
 
@@ -116,9 +116,11 @@ hikerAid/
    authenticated matcher
 4. Add tests next to existing ones
 5. Add frontend wiring in `app.js` / `map.js` / `elevation.js`
-6. Bump the `?v=N` cache busters in `index.html` and `CACHE_NAME` in `sw.js`
-7. Update [features.md](features.md) and [api.md](api.md)
-8. Run `mvn test` and `mvn package`
+6. Bump cache busters with the `/bump-cache-version` skill
+7. Strip comments from any new source with the `/strip-comments` skill
+8. Update [features.md](features.md) and [api.md](api.md)
+9. Run the `/release-checklist` skill (`mvn test`, `node --check`, diff review)
+   before committing
 
 ## CI / Build
 

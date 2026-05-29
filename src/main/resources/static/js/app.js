@@ -734,11 +734,12 @@
     return `EMERGENCY - I need help. My location: ${latS}, ${lonS} ${accS}. Map: ${mapsUrl}`;
   }
 
-  function showEmergencyFallback(lat, lon, accuracy, reason) {
+  function showEmergencyFallback(lat, lon, accuracy, reason, title) {
     const msg = buildEmergencyMessage(lat, lon, accuracy);
     const mapsUrl = `https://maps.google.com/?q=${lat.toFixed(6)},${lon.toFixed(6)}`;
+    document.getElementById('ef-title').textContent = title || 'Send emergency via SMS';
     document.getElementById('ef-sub').textContent = reason
-      || 'Server unreachable. Send your location via your phone\'s SMS app instead.';
+      || 'Send your location via your phone\'s SMS app instead.';
     document.getElementById('ef-coords').textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}` + (accuracy ? ` (accuracy +/-${Math.round(accuracy)}m)` : '');
     document.getElementById('ef-sms').href = `sms:?body=${encodeURIComponent(msg)}`;
     document.getElementById('ef-maps').href = mapsUrl;
@@ -781,26 +782,38 @@
       const lon = pos.coords.longitude;
       const acc = pos.coords.accuracy || 0;
 
-      if (!navigator.onLine) {
-        showEmergencyFallback(lat, lon, acc, 'You are offline. Send your location via SMS instead.');
-        setEmergencyBusy(false);
-        return;
-      }
-
       try {
         const res = await fetch('/api/friends/emergency', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          showToast(data.message);
+          showToast(data.message || 'Emergency alert sent');
         } else {
-          showEmergencyFallback(lat, lon, acc, data.error || 'Server rejected the alert. Send via SMS instead.');
+          const err = (data.error || '').toLowerCase();
+          if (err.includes('no friends')) {
+            showEmergencyFallback(lat, lon, acc,
+              'You have no friends to alert yet. Add emergency contacts in the app, or send your location by SMS now.',
+              'No emergency contacts - use SMS');
+          } else if (err.includes('not configured')) {
+            showEmergencyFallback(lat, lon, acc,
+              'Email alerts are unavailable on the server. Send your location by SMS now.',
+              'Alerts unavailable - use SMS');
+          } else {
+            showEmergencyFallback(lat, lon, acc,
+              data.error || 'The alert could not be sent. Send your location by SMS now.',
+              'Could not send - use SMS');
+          }
         }
       } catch (e) {
-        showEmergencyFallback(lat, lon, acc, 'Could not reach the server. Send your location via SMS instead.');
+        const offline = !navigator.onLine;
+        showEmergencyFallback(lat, lon, acc,
+          offline
+            ? 'You appear to be offline. Send your location via your phone\'s SMS app instead.'
+            : 'Could not reach the server. Send your location via your phone\'s SMS app instead.',
+          offline ? 'No internet - use SMS' : 'Server unreachable - use SMS');
       }
       setEmergencyBusy(false);
     }

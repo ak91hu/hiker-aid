@@ -70,7 +70,8 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | GET | `/api/user/stats` | user | Aggregated activity stats |
 | GET | `/api/ai-tip` | public | Seasonal hiking tip from Gemini |
 | POST | `/api/ai-analysis` | public | Route performance analysis from Gemini |
-| GET/POST/DELETE | `/api/activities/**` | user | Activity CRUD (max 500/user, 15MB GPX) |
+| GET | `/api/weather?lat=&lon=` | public | Open-Meteo current + 12h forecast with OK/Caution/Danger risk banner (cached 1h, LRU 512) |
+| GET/POST/DELETE | `/api/activities/**` | user | Activity CRUD (max 500/user, 15MB GPX); `/{id}/comparisons` matches past attempts on the same route |
 | GET | `/api/friends` | user | List friends, pending requests, invites |
 | POST | `/api/friends/add` | user | Add friend by email (or send invite via Resend) |
 | POST | `/api/friends/accept/{id}` | user | Accept pending friend request |
@@ -106,7 +107,7 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | `GOOGLE_CLIENT_SECRET` | **yes** | none | Google OAuth2 |
 | `ADMIN_EMAIL` | no | empty | Email that gets admin role |
 | `GEMINI_API_KEY` | no | empty | Gemini AI features |
-| `RESEND_API_KEY` | no | hardcoded default | Resend.com email delivery |
+| `RESEND_API_KEY` | no | empty | Resend.com email delivery (no email features without it) |
 | `RESEND_FROM` | no | `HikerAid <onboarding@resend.dev>` | Email sender address |
 
 Note: Resend free tier without verified domain can only send to the account owner (`hikeraid@gmail.com`). Verify domain at resend.com/domains to send to any recipient.
@@ -177,11 +178,16 @@ No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfigu
 
 **`lastGpsPosition`**: Module-level variable in `app.js`, updated by both live tracking `watchPosition` and recording `watchPosition` callbacks.
 
+**Emergency triggers**: an always-on floating SOS button (`#btn-emergency-fab`, shown in `checkAuth` whenever logged in, on every screen) plus the tracking-panel and friends buttons. All share class `.emergency-trigger` and call `sendEmergency`; `setEmergencyBusy` disables/animates them together.
+
 **Emergency flow**:
 1. If `lastGpsPosition` exists and is < 30s old, use it immediately (no extra GPS fix delay)
 2. Otherwise, call `getCurrentPosition` with `maximumAge: 0` (guaranteed fresh fix), `timeout: 15000`
-3. POST to `/api/friends/emergency` with `{latitude, longitude, accuracy}`
-4. Backend sends email to each accepted friend via Resend with formatted coordinates, accuracy, and Google Maps link
+3. Always POST to `/api/friends/emergency` with `{latitude, longitude, accuracy}` - do NOT pre-check `navigator.onLine` (unreliable on laptops; caused false "no internet" reports)
+4. On success, backend emails each accepted friend via Resend with formatted coordinates, accuracy, and Google Maps link
+5. On rejection/failure, open the cause-aware fallback modal (`showEmergencyFallback(lat, lon, acc, reason, title)`): no contacts / alerts unavailable / server unreachable / no internet - each with `sms:` deep-link, Maps link, copy button
+
+**Live turn-back** (during GPS tracking): `updateTurnBack(nearestIdx)` recomputes daylight-left, est-finish, and a turn-back deadline from the hiker's position, measured pace (`trackStartTime`/`trackStartIdx`), and the wall clock, using `safety.cumForwardMinutes`/`cumReturnMinutes`/`sunsetMinutes` from `/api/analyze`. Fully client-side.
 
 ## Security
 
@@ -209,6 +215,10 @@ No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfigu
 - Email bodies: ASCII only, no em dashes or Unicode chars (cause garbled `?` in plain text emails)
 - Gemini: iterate response parts backwards to skip thinking model reasoning
 - Logout: lambda matcher, not `AntPathRequestMatcher` (removed in Spring Security 7)
+- Cache version: bump `?v=N` (CSS+JS in `index.html`) and `CACHE_NAME` in `sw.js` together on every frontend change (`/bump-cache-version` skill)
+- Comment-free `src/main` Java/JS/CSS; keep only the XXE and `package-private for unit testing` markers (`/strip-comments` skill); `src/test` is exempt
+- `SafetyAnalysis.cumForwardMinutes`/`cumReturnMinutes` must stay index-aligned with `trackPoints` (same downsampling step) - they drive live turn-back guidance
+- Emergency: never pre-check `navigator.onLine`; always attempt the POST and fall back on real failure
 
 ## Frontend structure (app.js)
 
@@ -217,7 +227,7 @@ The upload screen has three sections visible when logged in:
 2. **User content** (`#user-content`): tabbed card with "My Activities" and "Friends" tabs. Tab switching via `.uc-tab` click handlers
 3. **AI tip card** (`#ai-tip-card`): seasonal hiking tip from Gemini, or "API key required" message
 
-State variables: `routeData`, `currentGpxText`, `currentUser`, `gpsWatchId`, `isTracking`, `lastGpsPosition`, `hasFriends`, recording state vars.
+State variables: `routeData`, `currentGpxText`, `currentUser`, `gpsWatchId`, `isTracking`, `lastGpsPosition`, `trackStartTime`, `trackStartIdx`, `hasFriends`, recording state vars.
 
 ## Deployment
 
