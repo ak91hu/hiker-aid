@@ -12,16 +12,20 @@
               | sw.js    (offline)     |                | AiController                |
               | manifest.json          |                | UserController              |
               +------------------------+                | FriendController            |
+                        |                               | TrackingController          |
+                        |                               | PublicController            |
+                        |                               | RoutePlannerController      |
+                        |                               | OverdueAlertService (@Sched)|
                         |                               +-----------------------------+
                         |                                          |
             +-----------+------------+                  +----------+----------+
             |                        |                  |                     |
        IndexedDB                Cache Storage     PostgreSQL/H2          External APIs
        (pending acts +          (app shell +      (users, activities,    Gemini 2.5/2.0 Flash
-        photos store)            map tiles)        friends, invites)      Open-Meteo (no key)
-                                                                          Resend.com email
-                                                                          Mapzen DEM tiles
-                       Lazy-loaded:                                       (3D terrain)
+        photos store)            map tiles)        friends, invites,      Open-Meteo (no key)
+                                                   tracking_sessions)     Resend.com email
+                                                                          BRouter (routing, no key)
+                       Lazy-loaded:                                       Mapzen DEM tiles (3D)
                        - MapLibre GL JS (3D terrain)
                        - Camera capture (compress -> IndexedDB)
 ```
@@ -124,6 +128,40 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
   -> Return text -> frontend renders as markdown in slide-in panel
 ```
 
+### Route Planning (snap-to-trail)
+```
+User taps map points in planner mode
+  -> POST /api/route/plan {points:[[lat,lon]...], mode}
+  -> RoutePlannerController builds lonlats (Double.toString, '.'-decimal)
+     -> UriComponentsBuilder...encode() -> GET brouter.de (server-side, no CORS)
+     -> validate response is XML/GPX, else 502 with friendly message
+  -> { gpx } -> client draws snapped polyline (DOMParser), shows live distance
+  -> "Analyze" feeds the GPX into the standard /api/analyze pipeline
+```
+
+### Live Tracking + Overdue Alert
+```
+User starts live share while tracking
+  -> POST /api/track/start {routeName, expectedReturn(UTC Instant)}
+     -> deactivate prior active sessions; create TrackingSession; return {token,url}
+  -> each GPS update: POST /api/track/{token}/ping {lat,lon,accuracy}
+Follower opens /live/{token}
+  -> page polls GET /api/public/track/{token} every 15s
+  -> shows real last position (or "waiting for first GPS fix"); stops when inactive
+OverdueAlertService @Scheduled (60s):
+  -> find active, not-yet-alerted sessions past expectedReturn (Instant.now())
+  -> set overdueAlertSent=true (before emailing), email each friend last position
+```
+
+### Public Route Sharing
+```
+Owner clicks Share on a saved activity
+  -> POST /api/activities/{id}/share -> generate SecureRandom token -> { url }
+Anyone opens /route/{token}
+  -> GET /api/public/route/{token} -> { name, gpxData }
+  -> client POSTs gpxData to /api/analyze, renders read-only viewer (shared-mode)
+```
+
 ## Data Model
 
 ### users
@@ -152,6 +190,7 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
 | difficulty_score | INTEGER | 0-100 |
 | avg_speed_kmh | DOUBLE | |
 | **start_lat, start_lon, end_lat, end_lon** | DOUBLE | For route matching; back-filled lazily on first comparison query |
+| share_token | VARCHAR UNIQUE | Public share link token; null until shared, cleared on revoke |
 
 ### friendships
 | Column | Type |
@@ -170,6 +209,23 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
 | invitee_email | VARCHAR(255) |
 | created_at | TIMESTAMP |
 
+### tracking_sessions
+| Column | Type | Notes |
+|---|---|---|
+| id | BIGINT PK | |
+| user_id | BIGINT FK | Session owner (the hiker) |
+| token | VARCHAR UNIQUE | Public `/live/{token}` identifier |
+| route_name | VARCHAR | Optional label |
+| started_at | TIMESTAMP (Instant/UTC) | |
+| last_update | TIMESTAMP (Instant/UTC) | Time of last ping |
+| last_lat, last_lon, last_accuracy_m | DOUBLE | Last real GPS ping; null until first ping |
+| expected_return | TIMESTAMP (Instant/UTC) | Drives the overdue alert; null if no check-in set |
+| active | BOOLEAN | False once stopped |
+| overdue_alert_sent | BOOLEAN | Set before emailing so the alert can't repeat |
+
+All `tracking_sessions` timestamps are stored and compared as UTC `Instant`s so
+the overdue check and live-page display are timezone-correct.
+
 ## Security Model
 
 | Layer | Mechanism |
@@ -183,6 +239,9 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
 | Secrets | Read from environment variables; never in source or version control |
 | Rate / size limits | 15 MB GPX cap; 500 activities per user |
 | Emergency endpoint | Requires at least one accepted friend; coordinates validated; accuracy reported |
+| Live tracking | `/api/track/**` owner-checked; public read (`/api/public/track/{token}`) exposes only first name + last position, never a synthesized point |
+| Share / live tokens | Unguessable `SecureRandom` 12-byte URL-safe tokens; owner can revoke share tokens |
+| Route planner proxy | `/api/route/plan` calls a fixed upstream (BRouter) with server-built, range-validated params — not a general open proxy |
 | Error responses | Generic messages, no stack traces leaked |
 | Logout | Lambda `RequestMatcher` accepts any HTTP method (Spring Security 7 removed `AntPathRequestMatcher`) |
 
@@ -190,8 +249,8 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
 
 | File | Responsibility |
 |---|---|
-| `app.js` | State management, screen switching, file upload, GPS recording, auth, activity CRUD, offline sync (IndexedDB), AI panel, weather panel, splits panel, theme toggle, playback, photo capture, 3D toggle, offline tile downloader |
-| `map.js` | Leaflet init, gradient polyline rendering, waypoint markers, safety markers, GPS tracking, layer switching, photo markers |
+| `app.js` | State management, screen switching, file upload, GPS recording, auth, activity CRUD, offline sync (IndexedDB), AI panel, weather panel, splits panel, multi-day panel, theme toggle, playback, photo capture, 3D toggle, offline tile downloader, route planner, live-share + public live/share viewers, personal-pace toggle, off-route warning, printable card |
+| `map.js` | Leaflet init, gradient polyline rendering, waypoint markers, safety markers, GPS tracking, layer switching, photo markers, distance-to-route (deviation), clear-route (planner) |
 | `elevation.js` | Chart.js elevation profile, gradient-coloured segments, hover sync, programmatic highlight for playback |
 | `sw.js` | App shell network-first; tile cache stale-while-revalidate with subdomain normalization; MessageChannel API for clear/size; background-sync handler |
 
@@ -207,6 +266,11 @@ User clicks AI button -> POST /api/ai-analysis with {name, stats, safety}
 8. **MessageChannel for SW comms** — avoids listener accumulation that would happen with `addEventListener('message', ...)` on every operation.
 9. **LinkedHashMap LRU for weather cache** — bounded memory without bringing in a cache library.
 10. **Vanilla JS, no framework** — keeps the bundle small and the moving parts few. Module pattern with namespaces.
+11. **No fabricated data** — only real measured or transparently computed values; explicit empty states ("no fix yet", `calibrated:false`) instead of guesses. Heart rate is intentionally omitted (not measured).
+12. **UTC `Instant`s for tracking timestamps** — check-in/overdue comparisons and live-page display are timezone-correct regardless of server (UTC on Render) or device zone.
+13. **BRouter proxied server-side, no key** — snap-to-trail routing without CORS issues or an API key, consistent with the env-vars-only rule.
+14. **`@Scheduled` overdue alerts** — a single in-process scheduler (`@EnableScheduling`) checks active sessions every 60 s; the sent-flag is set before emailing so failures can't spam.
+15. **Personal pace cached by activity count** — `/api/user/pace` parses GPX only when the user's activity set changes, keeping the dashboard load cheap.
 
 ## Environment Variables
 

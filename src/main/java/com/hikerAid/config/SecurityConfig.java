@@ -24,10 +24,11 @@ public class SecurityConfig {
                 .ignoringRequestMatchers("/api/**"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/api/analyze", "/api/health", "/api/user", "/api/ai-analysis", "/api/ai-tip",
-                    "/api/weather",
+                    "/api/weather", "/api/route/plan", "/route/**", "/live/**", "/api/public/**",
                     "/css/**", "/js/**", "/icons/**", "/sw.js", "/manifest.json").permitAll()
                 .requestMatchers("/admin", "/api/admin/**").authenticated()
-                .requestMatchers("/api/activities/**", "/api/user/stats", "/api/friends/**").authenticated()
+                .requestMatchers("/api/activities/**", "/api/user/stats", "/api/user/pace",
+                    "/api/friends/**", "/api/track/**").authenticated()
                 .anyRequest().permitAll())
             .oauth2Login(oauth -> oauth
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))

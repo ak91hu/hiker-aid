@@ -27,7 +27,8 @@ Test layout under `src/test/java/com/hikerAid/`:
 |---|---|
 | `service/GpxParserServiceTest.java` | GPX parser happy paths |
 | `service/GpxParserEdgeCaseTest.java` | XXE prevention, malformed input, exotic GPX flavours |
-| `service/RouteAnalysisServiceTest.java` | Tobler, deadband, difficulty, calories, splits, VAM, GAP |
+| `service/RouteAnalysisServiceTest.java` | Tobler, deadband, difficulty, calories, fitness pace, safety |
+| `service/RouteAnalysisAdvancedMetricsTest.java` | VAM, GAP, splits, live turn-back arrays, pack-weight load, explicit pace override, real-data pace calibration |
 | `service/WeatherServiceTest.java` | Open-Meteo risk assessment heuristics, cache behaviour |
 | `controller/GpxApiControllerTest.java` | `/api/analyze` validation and happy path |
 | `controller/GpxApiSecurityTest.java` | XXE on the analyze endpoint |

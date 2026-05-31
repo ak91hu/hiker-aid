@@ -56,9 +56,10 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | Table | Key columns |
 |---|---|
 | `users` | id, google_id (unique), email, name, avatar_url, admin, created_at |
-| `activities` | id, user_id (FK), name, gpx_data (CLOB), all stats fields, recorded_at |
+| `activities` | id, user_id (FK), name, gpx_data (CLOB), all stats fields, recorded_at, share_token (unique, nullable) |
 | `friendships` | id, requester_id (FK), addressee_id (FK), status (PENDING/ACCEPTED), created_at |
 | `friend_invites` | id, inviter_id (FK), invitee_email, created_at |
+| `tracking_sessions` | id, user_id (FK), token (unique), route_name, started_at, last_update, last_lat/last_lon/last_accuracy_m, expected_return, active, overdue_alert_sent |
 
 ## API endpoints
 
@@ -68,6 +69,7 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | GET | `/api/health` | public | Health check |
 | GET | `/api/user` | public | Current auth status + profile |
 | GET | `/api/user/stats` | user | Aggregated activity stats |
+| GET | `/api/user/pace` | user | Self-calibrated personal pace factor from real recorded times vs Tobler baseline (needs >=3 timed hikes, else `calibrated:false`) |
 | GET | `/api/ai-tip` | public | Seasonal hiking tip from Gemini |
 | POST | `/api/ai-analysis` | public | Route performance analysis from Gemini |
 | GET | `/api/weather?lat=&lon=` | public | Open-Meteo current + 12h forecast with OK/Caution/Danger risk banner (cached 1h, LRU 512) |
@@ -77,6 +79,15 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | POST | `/api/friends/accept/{id}` | user | Accept pending friend request |
 | DELETE | `/api/friends/{id}` | user | Remove friend |
 | POST | `/api/friends/emergency` | user | Send emergency alert with coordinates + accuracy to all friends |
+| POST/DELETE | `/api/activities/{id}/share` | user | Create / revoke a public share token for an activity |
+| POST | `/api/track/start` | user | Start a live-tracking session (`{routeName, expectedReturn}`); deactivates prior active sessions, returns `{token, url}` |
+| POST | `/api/track/{token}/ping` | user | Push a real GPS position to the owner's session |
+| POST | `/api/track/{token}/stop` | user | End a live-tracking session |
+| POST | `/api/route/plan` | public | Snap-to-trail routing proxy to public BRouter (`{points:[[lat,lon]...], mode:hike\|trek\|walk}` -> `{gpx}`); no API key |
+| GET | `/api/public/route/{token}` | public | Read a shared route (name + gpxData) |
+| GET | `/api/public/track/{token}` | public | Read a live session's last real position + status (no fabricated point; `hasFix:false` until first ping) |
+| GET | `/route/{token}` | public | Read-only shared-route viewer page (SPA, `shared-mode`) |
+| GET | `/live/{token}` | public | Public live-tracking viewer page (SPA, `live-mode`, polls every 15s) |
 | GET | `/api/logout` | public | Logout (lambda matcher accepts GET+POST; Spring Security 7 removed AntPathRequestMatcher) |
 | GET | `/admin` | admin | Admin panel page |
 | GET | `/api/admin/stats` | admin | System stats |
@@ -95,7 +106,9 @@ PostgreSQL on Render (persistent across deploys), H2 file-based for local dev. T
 | `file` | multipart | required | .gpx file (max 15 MB) |
 | `weight` | double | 70 | Body weight kg (20-300) |
 | `height` | double | 170 | Height cm (120-220) |
+| `pack` | double | 0 | Pack/load weight kg (clamped 0-60); adds to mechanical calorie terms and slows Tobler pace |
 | `fitness` | int | 3 | 1=Beginner(0.6x) 2=Below avg(0.8x) 3=Average(1.0x) 4=Fit(1.15x) 5=Very fit(1.3x) |
+| `paceFactor` | double | 0 | If >0, overrides `fitness` with an explicit pace factor (used by the self-calibrated "use my measured pace" toggle); clamped 0.3-3.0 |
 | `startHour` | int | current | Start hour (0-23); frontend sends current time |
 | `startMinute` | int | current | Start minute (0-59) |
 
@@ -135,12 +148,15 @@ Do NOT change to Naismith's rule - Tobler is the intentional differentiator.
 ### Calorie estimate (uses height)
 ```
 heightFactor = clamp(1.0 - (heightCm - 170) * 0.005, 0.85, 1.15)
-flat    = weight * distKm * 0.7 * heightFactor
-climb   = ascentM * weight * 0.01
-descent = descentM * weight * 0.003
+movingMass = weight + max(0, pack)        // carried load adds mechanical cost, not BMR
+flat    = movingMass * distKm * 0.7 * heightFactor
+climb   = ascentM * movingMass * 0.01
+descent = descentM * movingMass * 0.003
 bmr     = (10*weight + 6.25*height - 200) / 24 * hours
 total   = flat + climb + descent + bmr
 ```
+
+Pack load also slows pace: `paceFactor *= 1 - min(0.25, (pack/weight) * 0.6)` (applied alongside the fitness factor, so it flows through time, splits, and the safety/turn-back math).
 
 ### Difficulty score (0-100)
 ```
@@ -219,6 +235,13 @@ No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfigu
 - Comment-free `src/main` Java/JS/CSS; keep only the XXE and `package-private for unit testing` markers (`/strip-comments` skill); `src/test` is exempt
 - `SafetyAnalysis.cumForwardMinutes`/`cumReturnMinutes` must stay index-aligned with `trackPoints` (same downsampling step) - they drive live turn-back guidance
 - Emergency: never pre-check `navigator.onLine`; always attempt the POST and fall back on real failure
+- No fabricated data anywhere: only real measured (GPS/altitude) or transparently computed values; show explicit empty states ("—", "no fix yet", "waiting for first GPS fix") instead of guesses. Heart rate is intentionally absent (not measured)
+- Personal pace (`/api/user/pace`) calibrates only from activities with genuine GPS timestamps; needs >=3 qualifying hikes or returns `calibrated:false`
+- LiveTrack public read (`/api/public/track/{token}`) must return `hasFix:false` with null position until a real ping arrives - never synthesize a location
+- Overdue auto-alert: `OverdueAlertService` `@Scheduled` (every 60s, needs `@EnableScheduling`); sets `overdueAlertSent=true` before emailing so a failure can't spam every minute
+- Route planner proxies the public BRouter instance server-side (`/api/route/plan`) to avoid CORS; no API key (keep it key-free per the env-vars-only rule). Build `lonlats` with `.`-decimal (Double.toString), encode via `UriComponentsBuilder...build().encode()`
+- Spring Framework 7: use `UriComponentsBuilder.fromUriString(...)`, not the removed `fromHttpUrl(...)`
+- SPA public pages `/route/{token}` and `/live/{token}` return the `index` template; `app.js` detects the path and enters `shared-mode`/`live-mode` (CSS hides owner-only controls)
 
 ## Frontend structure (app.js)
 

@@ -26,7 +26,9 @@ Analyze a GPX file. **Multipart form data**, not JSON.
 | `file` | file | required | `.gpx`, max 15 MB |
 | `weight` | double | 70 | 20-300 kg |
 | `height` | double | 170 | 120-220 cm |
+| `pack` | double | 0 | clamped 0-60 kg; carried load adds to mechanical calories and slows pace |
 | `fitness` | int | 3 | clamped to 1-5 |
+| `paceFactor` | double | 0 | if > 0, overrides `fitness` with an explicit pace factor (clamped 0.3-3.0); used by the "use my measured pace" toggle |
 | `startHour` | int | 8 | 0-23 |
 | `startMinute` | int | 0 | 0-59 |
 
@@ -101,6 +103,32 @@ Response: `{"available": true, "analysis": "markdown text"}` or
 Seasonal hiking safety tip from Gemini. Response:
 `{"available": true|false, "tip": "..."}`
 
+### `POST /api/route/plan`
+Snap-to-trail routing proxy to the public BRouter instance (no API key). JSON body:
+```json
+{"points": [[lat, lon], [lat, lon], ...], "mode": "hike|trek|walk"}
+```
+2-50 points, coordinates validated. Returns `{"gpx": "<gpx>...</gpx>"}` (BRouter
+GPX with elevations) or `502` with `{"error": "..."}` if no route is found or the
+service is unavailable. Feed the returned GPX back into `/api/analyze`.
+
+### `GET /api/public/route/{token}`
+Read a publicly shared route. Response: `{"name": "...", "gpxData": "..."}` or
+`404` if the token is unknown/revoked.
+
+### `GET /api/public/track/{token}`
+Read a live-tracking session. Response:
+```json
+{
+  "active": true, "hikerName": "Alex", "routeName": "...",
+  "startedAt": "2026-05-31T08:00:00Z", "lastUpdate": "2026-05-31T09:12:00Z",
+  "expectedReturn": "2026-05-31T17:00:00Z",
+  "hasFix": true, "lat": 47.5, "lon": 19.0, "accuracy": 12.0
+}
+```
+All timestamps are UTC `Instant`s. `hasFix` is `false` with null `lat`/`lon`
+until the first real ping arrives — no synthesized position. `404` if unknown.
+
 ### `GET /api/logout`
 Logs the user out and redirects to `/`. Lambda `RequestMatcher` accepts
 both GET and POST.
@@ -110,6 +138,13 @@ both GET and POST.
 ### `GET /api/user/stats`
 Aggregated stats for the current user. Response:
 `{"totalActivities": ..., "totalKm": ..., "totalGainM": ..., "totalCalories": ...}`
+
+### `GET /api/user/pace`
+Self-calibrated personal pace from the user's real recorded times vs the Tobler
+baseline. Response when calibrated:
+`{"calibrated": true, "paceFactor": 1.12, "samples": 7}`; otherwise
+`{"calibrated": false, "samples": 1, "needed": 3}`. Result is cached per user and
+recomputed only when the activity count changes.
 
 ### `GET /api/activities`
 List the current user's activities (no GPX data, just summaries).
@@ -129,6 +164,13 @@ to the current user.
 
 ### `DELETE /api/activities/{id}`
 Deletes the activity if owned by the current user.
+
+### `POST /api/activities/{id}/share`
+Create (or return existing) a public share token for an owned activity.
+Response: `{"token": "...", "url": "/route/<token>"}`.
+
+### `DELETE /api/activities/{id}/share`
+Revoke the share token. Response: `{"revoked": true}`.
 
 ### `GET /api/activities/{id}/comparisons`
 Returns past activities that match the same route (Haversine endpoints < 200 m,
@@ -178,6 +220,29 @@ link.
 
 The frontend falls back to an SMS deep-link modal if this endpoint fails or
 the device is offline.
+
+### `POST /api/track/start`
+Start a live-tracking session. JSON body (both optional):
+`{"routeName": "...", "expectedReturn": "<UTC ISO instant>"}`. Deactivates any
+prior active sessions for the user. Response: `{"token": "...", "url": "/live/<token>"}`.
+
+### `POST /api/track/{token}/ping`
+Push a real GPS position to the owner's session. JSON body:
+`{"latitude": ..., "longitude": ..., "accuracy": ...}`. Owner-only.
+
+### `POST /api/track/{token}/stop`
+End a live-tracking session. Owner-only.
+
+> If `expectedReturn` is set and passes while the session is still active, a
+> `@Scheduled` job (`OverdueAlertService`, every 60 s) emails accepted friends the
+> last known position. See [features.md](features.md#automatic-overdue-alert-check-in).
+
+## Pages (Thymeleaf SPA)
+
+| Path | Purpose |
+|---|---|
+| `/route/{token}` | Read-only public viewer for a shared route (`shared-mode`) |
+| `/live/{token}` | Public live-tracking follow page (`live-mode`, polls every 15 s) |
 
 ## Admin Endpoints
 

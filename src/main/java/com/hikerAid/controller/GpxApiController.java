@@ -28,7 +28,9 @@ public class GpxApiController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "weight", defaultValue = "70") double weight,
             @RequestParam(value = "height", defaultValue = "170") double height,
+            @RequestParam(value = "pack", defaultValue = "0") double pack,
             @RequestParam(value = "fitness", defaultValue = "3") int fitness,
+            @RequestParam(value = "paceFactor", defaultValue = "0") double paceFactor,
             @RequestParam(value = "startHour", defaultValue = "8") int startHour,
             @RequestParam(value = "startMinute", defaultValue = "0") int startMinute) {
 
@@ -46,10 +48,13 @@ public class GpxApiController {
             return ResponseEntity.badRequest().body(Map.of("error", "Weight must be between 20 and 300 kg"));
         }
         fitness = Math.max(1, Math.min(5, fitness));
+        pack = Math.max(0, Math.min(60, pack));
 
         try (var is = file.getInputStream()) {
             GpxData gpxData = gpxParser.parse(is);
-            AnalysisResult result = routeAnalysis.analyzeWithWeight(gpxData, weight, height, fitness, startHour, startMinute);
+            AnalysisResult result = paceFactor > 0
+                ? routeAnalysis.analyzeWithPace(gpxData, weight, height, pack, Math.max(0.3, Math.min(3.0, paceFactor)), startHour, startMinute)
+                : routeAnalysis.analyzeWithWeight(gpxData, weight, height, pack, fitness, startHour, startMinute);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Could not parse GPX file — please check the file is valid"));

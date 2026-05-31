@@ -268,6 +268,7 @@
         document.getElementById('btn-emergency-fab').classList.remove('hidden');
         loadActivities();
         loadUserStats();
+        loadPersonalPace();
         loadFriends();
         updateSyncBadge();
         if (navigator.onLine) syncPendingActivities();
@@ -367,11 +368,15 @@
         viewBtn.className = 'activity-view-btn';
         viewBtn.textContent = 'View';
         viewBtn.addEventListener('click', () => viewActivity(a.id));
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'activity-view-btn';
+        shareBtn.textContent = 'Share';
+        shareBtn.addEventListener('click', () => shareActivity(a.id));
         const delBtn = document.createElement('button');
         delBtn.className = 'activity-delete-btn';
         delBtn.textContent = 'Delete';
         delBtn.addEventListener('click', () => deleteActivity(a.id));
-        actions.append(viewBtn, delBtn);
+        actions.append(viewBtn, shareBtn, delBtn);
 
         card.append(mainRow, statsRow, actions);
         list.appendChild(card);
@@ -390,7 +395,10 @@
       const form = new FormData();
       form.append('file', gpxBlob, 'activity.gpx');
       form.append('weight', document.getElementById('weight-input').value || '70');
+      form.append('height', document.getElementById('height-input').value || '170');
+      form.append('pack', document.getElementById('pack-input').value || '0');
       form.append('fitness', document.getElementById('fitness-select').value || '3');
+      appendPaceOverride(form);
       const st2 = currentStartTime();
       form.append('startHour', st2.hour);
       form.append('startMinute', st2.minute);
@@ -403,6 +411,7 @@
       currentGpxText = activity.gpxData;
       routeData = data;
       routeData._activityId = id;
+      document.getElementById('btn-download-gpx').classList.remove('hidden');
       renderViewer(data);
       showScreen('viewer');
       loadComparisons(id);
@@ -464,6 +473,35 @@
     summary.parentNode.insertBefore(banner, summary);
   }
 
+  let measuredPace = null;
+
+  async function loadPersonalPace() {
+    const row = document.getElementById('pace-cal-row');
+    try {
+      const res = await fetch('/api/user/pace');
+      if (!res.ok) { row.classList.add('hidden'); return; }
+      const data = await res.json();
+      if (data.calibrated && data.paceFactor) {
+        measuredPace = data.paceFactor;
+        const pct = Math.round((data.paceFactor - 1) * 100);
+        const rel = pct === 0 ? 'about average pace'
+          : pct > 0 ? `${pct}% faster than the Tobler baseline`
+          : `${-pct}% slower than the Tobler baseline`;
+        document.getElementById('pace-cal-text').textContent =
+          `Use my measured pace (${data.paceFactor.toFixed(2)}×, ${rel}) from ${data.samples} timed hike${data.samples === 1 ? '' : 's'}`;
+        row.classList.remove('hidden');
+      } else {
+        measuredPace = null;
+        row.classList.add('hidden');
+      }
+    } catch (e) { row.classList.add('hidden'); }
+  }
+
+  function appendPaceOverride(form) {
+    const cb = document.getElementById('use-measured-pace');
+    if (measuredPace && cb && cb.checked) form.append('paceFactor', measuredPace);
+  }
+
   async function loadUserStats() {
     try {
       const res = await fetch('/api/user/stats');
@@ -474,6 +512,131 @@
       setText('us-gain', s.totalGainM || 0);
       setText('us-cal', s.totalCalories || 0);
     } catch (e) {}
+  }
+
+  async function shareActivity(id) {
+    try {
+      const res = await fetch(`/api/activities/${id}/share`, { method: 'POST' });
+      if (!res.ok) { showToast('Could not create share link'); return; }
+      const data = await res.json();
+      const url = location.origin + data.url;
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Public share link copied to clipboard');
+      } catch (e) {
+        prompt('Public share link:', url);
+      }
+    } catch (e) { showToast('Could not create share link'); }
+  }
+
+  async function loadSharedRoute(token) {
+    document.body.classList.add('shared-mode');
+    showScreen('loading');
+    try {
+      const res = await fetch(`/api/public/route/${encodeURIComponent(token)}`);
+      if (!res.ok) { showSharedError(); return; }
+      const shared = await res.json();
+      if (!shared.gpxData) { showSharedError(); return; }
+
+      const form = new FormData();
+      form.append('file', new Blob([shared.gpxData], { type: 'application/gpx+xml' }), 'route.gpx');
+      const analyzeRes = await fetch('/api/analyze', { method: 'POST', body: form });
+      const data = await analyzeRes.json();
+      if (!analyzeRes.ok) { showSharedError(); return; }
+
+      currentGpxText = shared.gpxData;
+      routeData = data;
+      document.getElementById('btn-download-gpx').classList.remove('hidden');
+      document.title = (shared.name || 'Shared route') + ' — HikerAid';
+      renderViewer(data);
+      showScreen('viewer');
+    } catch (e) { showSharedError(); }
+  }
+
+  function showSharedError() {
+    showScreen('upload');
+    showError('This shared route link is invalid or has been revoked.');
+  }
+
+  let liveViewMarker = null;
+  let liveViewCentered = false;
+  let liveViewPoll = null;
+
+  function relativeTime(iso) {
+    if (!iso) return 'never';
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return 'unknown';
+    const mins = Math.round((Date.now() - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `${h}h ${m}m ago`;
+  }
+
+  function loadLiveView(token) {
+    document.body.classList.add('shared-mode', 'live-mode');
+    document.getElementById('route-name').textContent = 'Live location';
+    document.getElementById('live-info').classList.remove('hidden');
+    showScreen('viewer');
+    const map = HikerMap.getMap();
+    if (map) { map.setView([20, 0], 2); requestAnimationFrame(() => map.invalidateSize()); }
+
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/public/track/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          renderLiveInfo({ error: 'This live link is invalid or has ended.' });
+          if (liveViewPoll) { clearInterval(liveViewPoll); liveViewPoll = null; }
+          return;
+        }
+        const data = await res.json();
+        renderLiveInfo(data);
+        if (!data.active && liveViewPoll) { clearInterval(liveViewPoll); liveViewPoll = null; }
+      } catch (e) {
+        renderLiveInfo({ error: 'Could not reach the server. Retrying...' });
+      }
+    };
+    tick();
+    liveViewPoll = setInterval(tick, 15000);
+  }
+
+  function renderLiveInfo(d) {
+    const box = document.getElementById('live-info');
+    box.innerHTML = '';
+    const add = (cls, text) => { const e = document.createElement('div'); e.className = cls; e.textContent = text; box.appendChild(e); return e; };
+
+    if (d.error) { add('li-title', 'Live tracking'); add('li-row', d.error); return; }
+
+    document.getElementById('route-name').textContent = `Live: ${d.hikerName || 'hiker'}`;
+    add('li-title', `${d.hikerName || 'A hiker'}${d.routeName ? ' · ' + d.routeName : ''}`);
+    add('li-row', d.active ? 'Status: tracking in progress' : 'Status: tracking ended');
+    if (d.startedAt) add('li-row', `Started: ${new Date(d.startedAt).toLocaleString()}`);
+    if (d.expectedReturn) add('li-row', `Expected back: ${new Date(d.expectedReturn).toLocaleString()}`);
+
+    const map = HikerMap.getMap();
+    if (d.hasFix && d.lat != null && d.lon != null) {
+      add('li-row', `Last position: ${relativeTime(d.lastUpdate)}${d.accuracy ? ` (±${Math.round(d.accuracy)} m)` : ''}`);
+      const link = document.createElement('a');
+      link.className = 'li-maps';
+      link.href = `https://maps.google.com/?q=${d.lat.toFixed(6)},${d.lon.toFixed(6)}`;
+      link.target = '_blank'; link.rel = 'noopener';
+      link.textContent = 'Open last position in Google Maps';
+      box.appendChild(link);
+      if (map) {
+        const latlng = [d.lat, d.lon];
+        if (!liveViewMarker) {
+          liveViewMarker = L.marker(latlng, {
+            icon: L.divIcon({ html: '<div class="gps-marker"></div>', className: '', iconSize: [18, 18], iconAnchor: [9, 9] }),
+            zIndexOffset: 1000
+          }).addTo(map);
+        } else {
+          liveViewMarker.setLatLng(latlng);
+        }
+        if (!liveViewCentered) { map.setView(latlng, 14); liveViewCentered = true; }
+      }
+    } else {
+      add('li-row', `Waiting for ${d.hikerName || 'the hiker'}'s first GPS fix...`);
+    }
   }
 
   async function deleteActivity(id) {
@@ -899,6 +1062,13 @@
       document.getElementById('height-input').focus();
       return false;
     }
+    const packEl = document.getElementById('pack-input');
+    const pack = parseFloat(packEl.value);
+    if (packEl.value !== '' && (isNaN(pack) || pack < 0 || pack > 60)) {
+      showError('Pack weight must be between 0 and 60 kg');
+      packEl.focus();
+      return false;
+    }
     return true;
   }
 
@@ -909,6 +1079,7 @@
 
     const weight = parseFloat(weightInput.value) || 70;
     const height = parseFloat(document.getElementById('height-input').value) || 170;
+    const pack = parseFloat(document.getElementById('pack-input').value) || 0;
     const fitness = document.getElementById('fitness-select').value || '3';
     const st = currentStartTime();
     const startHour = st.hour;
@@ -918,7 +1089,9 @@
     form.append('file', file);
     form.append('weight', weight);
     form.append('height', height);
+    form.append('pack', pack);
     form.append('fitness', fitness);
+    appendPaceOverride(form);
     form.append('startHour', startHour);
     form.append('startMinute', startMinute);
 
@@ -1062,6 +1235,69 @@
       tr.append(tdKm, tdTime, tdPace, tdGain, tdLoss, tdGrad);
       tbody.appendChild(tr);
     }
+  }
+
+  document.getElementById('btn-multiday').addEventListener('click', () => {
+    const panel = document.getElementById('multiday-panel');
+    const show = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    if (show) renderMultiday();
+  });
+  document.getElementById('btn-close-multiday').addEventListener('click', () => {
+    document.getElementById('multiday-panel').classList.add('hidden');
+  });
+  document.getElementById('multiday-hours').addEventListener('change', renderMultiday);
+
+  function buildStages(splits, budgetMin) {
+    const stages = [];
+    let cur = null;
+    for (const sp of splits) {
+      if (cur && cur.minutes > 0 && cur.minutes + sp.minutes > budgetMin) {
+        stages.push(cur);
+        cur = null;
+      }
+      if (!cur) cur = { fromKm: sp.km - 1, toKm: sp.km, km: 0, minutes: 0, gain: 0, loss: 0 };
+      cur.toKm = sp.km;
+      cur.km += 1;
+      cur.minutes += sp.minutes;
+      cur.gain += sp.elevationGainM;
+      cur.loss += sp.elevationLossM;
+    }
+    if (cur && cur.minutes > 0) stages.push(cur);
+    return stages;
+  }
+
+  function renderMultiday() {
+    const tbody = document.getElementById('multiday-tbody');
+    const note = document.getElementById('multiday-note');
+    tbody.innerHTML = '';
+    note.textContent = '';
+    const splits = routeData?.splits || [];
+    if (splits.length < 2) {
+      tbody.innerHTML = '<tr><td colspan="6" class="splits-empty">Route is too short to split into days.</td></tr>';
+      return;
+    }
+    let hours = parseFloat(document.getElementById('multiday-hours').value);
+    if (isNaN(hours) || hours < 2) hours = 6;
+    const stages = buildStages(splits, hours * 60);
+
+    stages.forEach((st, i) => {
+      const tr = document.createElement('tr');
+      const cells = [
+        `Day ${i + 1}`,
+        `${st.fromKm}–${st.toKm}`,
+        `${st.km} km`,
+        formatTime(Math.round(st.minutes)),
+        `${Math.round(st.gain)}m`,
+        `${Math.round(st.loss)}m`
+      ];
+      for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+      tbody.appendChild(tr);
+    });
+
+    const totalKm = routeData?.stats?.distanceKm;
+    note.textContent = `${stages.length} day${stages.length === 1 ? '' : 's'} at up to ${hours}h moving time each` +
+      (totalKm ? ` · ${totalKm} km total. Whole-km stages; start each day at first light and check the daylight margin on the Safety card.` : '.');
   }
 
   function formatPace(minPerKm) {
@@ -1237,7 +1473,9 @@
     form.append('file', gpxBlob, 'recording.gpx');
     form.append('weight', document.getElementById('weight-input').value || '70');
     form.append('height', document.getElementById('height-input').value || '170');
+    form.append('pack', document.getElementById('pack-input').value || '0');
     form.append('fitness', document.getElementById('fitness-select').value || '3');
+    appendPaceOverride(form);
     const st3 = currentStartTime();
     form.append('startHour', st3.hour);
     form.append('startMinute', st3.minute);
@@ -1387,6 +1625,7 @@
   }
 
   document.getElementById('btn-back').addEventListener('click', () => {
+    exitPlanner();
     stopTracking();
     stopPlayback();
     playbackPos = 0;
@@ -2103,6 +2342,74 @@
   }
 
   document.getElementById('btn-export').addEventListener('click', exportSummary);
+  document.getElementById('btn-print').addEventListener('click', () => {
+    buildPrintCard();
+    window.print();
+  });
+
+  function pcEl(tag, cls, text) {
+    const e = document.createElement(tag);
+    e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function pcItem(label, value) {
+    const d = pcEl('div', 'pc-item');
+    d.append(pcEl('span', 'pc-k', label), pcEl('span', 'pc-v', value));
+    return d;
+  }
+
+  function buildPrintCard() {
+    if (!routeData) return;
+    const s = routeData.stats;
+    const sf = routeData.safety;
+    const card = document.getElementById('print-card');
+    card.innerHTML = '';
+
+    card.append(pcEl('h1', 'pc-title', routeData.name || 'Route'));
+    card.append(pcEl('div', 'pc-sub', 'HikerAid safety card · ' + new Date().toLocaleString()));
+
+    const grid = pcEl('div', 'pc-grid');
+    const fmt = m => (m ? formatTime(m) : '—');
+    [
+      ['Distance', s.distanceKm != null ? s.distanceKm + ' km' : '—'],
+      ['Moving time', fmt(s.estimatedTimeMinutes)],
+      ['Total time (with breaks)', fmt(s.totalTimeMinutes)],
+      ['Elevation gain', s.hasElevationData ? s.elevationGainM + ' m' : '—'],
+      ['Elevation loss', s.hasElevationData ? s.elevationLossM + ' m' : '—'],
+      ['Max gradient', s.maxGradientPct != null ? s.maxGradientPct + '%' : '—'],
+      ['Difficulty', (s.difficulty || '—') + ' (' + (s.difficultyScore != null ? s.difficultyScore : '—') + '/100)'],
+      ['Calories', s.estimatedCalories ? Math.round(s.estimatedCalories) + ' kcal' : '—'],
+    ].forEach(([k, v]) => grid.append(pcItem(k, v)));
+    card.append(grid);
+
+    if (sf) {
+      card.append(pcEl('h2', 'pc-h2', 'Safety'));
+      const sgrid = pcEl('div', 'pc-grid');
+      const margin = sf.marginMinutes;
+      const marginStr = (margin >= 0 ? '+' : '-') + formatTime(Math.abs(margin)) + (margin < 0 ? ' (INSUFFICIENT)' : '');
+      [
+        ['Sunset (est.)', '~' + (sf.sunsetEstimate || '—')],
+        ['Daylight margin', marginStr],
+        ['Turn back at', sf.turnaroundDistanceKm + ' km'],
+        ['Point of no return', sf.pointOfNoReturnKm + ' km'],
+        ['Pace basis', sf.fitnessLabel + ' (' + sf.paceFactor + '× pace)'],
+      ].forEach(([k, v]) => sgrid.append(pcItem(k, v)));
+      card.append(sgrid);
+    }
+
+    const pts = routeData.trackPoints;
+    if (pts && pts.length > 1) {
+      card.append(pcEl('h2', 'pc-h2', 'Endpoints'));
+      const cg = pcEl('div', 'pc-grid');
+      cg.append(pcItem('Start', pts[0][0].toFixed(5) + ', ' + pts[0][1].toFixed(5)));
+      cg.append(pcItem('Finish', pts[pts.length - 1][0].toFixed(5) + ', ' + pts[pts.length - 1][1].toFixed(5)));
+      card.append(cg);
+    }
+
+    card.append(pcEl('div', 'pc-foot',
+      'Carry a paper map and compass. Times are estimates — turn back early if you fall behind schedule.  hikeraid.onrender.com'));
+  }
 
   function exportSummary() {
     if (!routeData) return;
@@ -2197,6 +2504,26 @@
     setText('t-current-ele', altM != null ? `${Math.round(altM)} m` : '—');
 
     updateTurnBack(nearestIdx);
+    updateDeviation(lat, lon);
+    if (liveShareToken) {
+      const acc = (lastGpsPosition && lastGpsPosition.coords && lastGpsPosition.coords.accuracy) || 0;
+      pingLive(lat, lon, acc);
+    }
+  }
+
+  function updateDeviation(lat, lon) {
+    const el = document.getElementById('t-offroute-banner');
+    if (!el) return;
+    const d = HikerMap.distanceToRouteMeters(lat, lon);
+    if (!isFinite(d)) { el.classList.add('hidden'); return; }
+    const acc = (lastGpsPosition && lastGpsPosition.coords && lastGpsPosition.coords.accuracy) || 0;
+    const threshold = Math.max(75, acc * 1.5);
+    if (d > threshold) {
+      el.textContent = `Off route — ${Math.round(d)} m from the planned path. Check your map and rejoin the track.`;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
   }
 
   function livePaceFactor(fwd, nearestIdx) {
@@ -2285,9 +2612,264 @@
     trackStartTime = null;
     lastGpsPosition = null;
     HikerMap.clearGpsMarker();
+    if (liveShareToken) stopLiveShare();
     document.getElementById('btn-track').classList.remove('active');
     document.getElementById('tracking-panel').classList.add('hidden');
     document.getElementById('t-turnback-banner').classList.add('hidden');
+    document.getElementById('t-offroute-banner').classList.add('hidden');
+  }
+
+  let liveShareToken = null;
+  let liveShareUrl = null;
+
+  function checkinIsoFromInput() {
+    const v = document.getElementById('checkin-time').value;
+    if (!v) return null;
+    const [hh, mm] = v.split(':').map(Number);
+    if (isNaN(hh) || isNaN(mm)) return null;
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+    return target.toISOString();
+  }
+
+  async function startLiveShare() {
+    if (!isTracking) { alert('Start tracking first so HikerAid can share your live position.'); return; }
+    const btn = document.getElementById('btn-live-share');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/track/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routeName: routeData?.name || null, expectedReturn: checkinIsoFromInput() })
+      });
+      if (!res.ok) { showToast('Could not start live sharing'); btn.disabled = false; return; }
+      const data = await res.json();
+      liveShareToken = data.token;
+      liveShareUrl = location.origin + data.url;
+      btn.classList.add('hidden');
+      document.getElementById('live-share-active').classList.remove('hidden');
+      const hasCheckin = !!document.getElementById('checkin-time').value;
+      document.getElementById('live-share-status').textContent = hasCheckin
+        ? 'Live sharing on · friends auto-alerted if you are not back in time'
+        : 'Live sharing on';
+      if (lastGpsPosition) pingLive(lastGpsPosition.coords.latitude, lastGpsPosition.coords.longitude, lastGpsPosition.coords.accuracy || 0);
+      try { await navigator.clipboard.writeText(liveShareUrl); showToast('Live link copied to clipboard'); } catch (e) {}
+    } catch (e) {
+      showToast('Could not start live sharing');
+      btn.disabled = false;
+    }
+  }
+
+  function pingLive(lat, lon, acc) {
+    if (!liveShareToken) return;
+    fetch(`/api/track/${liveShareToken}/ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latitude: lat, longitude: lon, accuracy: acc || 0 })
+    }).catch(() => {});
+  }
+
+  async function stopLiveShare() {
+    const token = liveShareToken;
+    liveShareToken = null;
+    liveShareUrl = null;
+    document.getElementById('live-share-active').classList.add('hidden');
+    const btn = document.getElementById('btn-live-share');
+    btn.classList.remove('hidden');
+    btn.disabled = false;
+    if (token) {
+      try { await fetch(`/api/track/${token}/stop`, { method: 'POST' }); } catch (e) {}
+    }
+  }
+
+  document.getElementById('btn-live-share').addEventListener('click', startLiveShare);
+  document.getElementById('btn-live-stop').addEventListener('click', () => { stopLiveShare(); showToast('Live sharing stopped'); });
+  document.getElementById('btn-live-copy').addEventListener('click', async () => {
+    if (!liveShareUrl) return;
+    try { await navigator.clipboard.writeText(liveShareUrl); showToast('Live link copied'); }
+    catch (e) { prompt('Live link:', liveShareUrl); }
+  });
+
+  let plannerActive = false;
+  let plannerWaypoints = [];
+  let plannerMarkers = [];
+  let plannerRouteLayer = null;
+  let plannerGpx = null;
+  let plannerMode = 'hike';
+  let plannerReqSeq = 0;
+
+  document.getElementById('btn-plan').addEventListener('click', enterPlanner);
+  document.getElementById('btn-planner-exit').addEventListener('click', () => { exitPlanner(); showScreen('upload'); });
+  document.getElementById('btn-plan-undo').addEventListener('click', plannerUndo);
+  document.getElementById('btn-plan-clear').addEventListener('click', plannerClear);
+  document.getElementById('btn-plan-analyze').addEventListener('click', plannerAnalyze);
+  document.querySelectorAll('input[name="planmode"]').forEach(r => {
+    r.addEventListener('change', () => { plannerMode = r.value; refreshPlannedRoute(); });
+  });
+
+  function enterPlanner() {
+    if (!validateBodyInputs()) return;
+    plannerActive = true;
+    plannerWaypoints = [];
+    plannerMarkers = [];
+    plannerGpx = null;
+    if (plannerRouteLayer) { plannerRouteLayer.remove(); plannerRouteLayer = null; }
+    routeData = null;
+    currentGpxText = null;
+
+    document.body.classList.add('planner-mode');
+    document.getElementById('planner-panel').classList.remove('hidden');
+    document.getElementById('route-name').textContent = 'Plan a route';
+    hidePlannerError();
+    updatePlannerStats();
+    setText('planner-dist', '');
+
+    showScreen('viewer');
+    HikerMap.clearRoute();
+    const map = HikerMap.getMap();
+    if (!map) return;
+    map.on('click', onPlannerClick);
+    requestAnimationFrame(() => map.invalidateSize());
+    try { map.getCenter(); } catch (e) { map.setView([20, 0], 2); }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { if (plannerActive) map.setView([pos.coords.latitude, pos.coords.longitude], 14); },
+        () => {},
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
+      );
+    }
+  }
+
+  function exitPlanner() {
+    plannerActive = false;
+    const map = HikerMap.getMap();
+    if (map) map.off('click', onPlannerClick);
+    plannerMarkers.forEach(m => m.remove());
+    plannerMarkers = [];
+    if (plannerRouteLayer) { plannerRouteLayer.remove(); plannerRouteLayer = null; }
+    document.body.classList.remove('planner-mode');
+    document.getElementById('planner-panel').classList.add('hidden');
+  }
+
+  function onPlannerClick(e) {
+    if (!plannerActive) return;
+    plannerWaypoints.push([e.latlng.lat, e.latlng.lng]);
+    addPlannerMarker(e.latlng, plannerWaypoints.length);
+    refreshPlannedRoute();
+  }
+
+  function addPlannerMarker(latlng, num) {
+    const map = HikerMap.getMap();
+    const m = L.marker(latlng, {
+      icon: L.divIcon({ html: `<div class="plan-marker">${num}</div>`, className: '', iconSize: [22, 22], iconAnchor: [11, 11] }),
+      zIndexOffset: 1000
+    }).addTo(map);
+    plannerMarkers.push(m);
+  }
+
+  function updatePlannerStats() {
+    setText('planner-points', `${plannerWaypoints.length} point${plannerWaypoints.length === 1 ? '' : 's'}`);
+  }
+
+  async function refreshPlannedRoute() {
+    updatePlannerStats();
+    hidePlannerError();
+    const map = HikerMap.getMap();
+    if (plannerWaypoints.length < 2) {
+      if (plannerRouteLayer) { plannerRouteLayer.remove(); plannerRouteLayer = null; }
+      plannerGpx = null;
+      setText('planner-dist', '');
+      return;
+    }
+    const seq = ++plannerReqSeq;
+    try {
+      const res = await fetch('/api/route/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: plannerWaypoints, mode: plannerMode })
+      });
+      if (seq !== plannerReqSeq || !plannerActive) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.gpx) { showPlannerError(data.error || 'Could not route those points.'); return; }
+      plannerGpx = data.gpx;
+      const latlngs = parseGpxLatLngs(data.gpx);
+      if (latlngs.length < 2) { showPlannerError('Route had no usable points.'); return; }
+      if (plannerRouteLayer) plannerRouteLayer.setLatLngs(latlngs);
+      else plannerRouteLayer = L.polyline(latlngs, { color: '#E76F51', weight: 4, opacity: 0.9 }).addTo(map);
+      let dist = 0;
+      for (let i = 1; i < latlngs.length; i++) dist += haversine(latlngs[i - 1][0], latlngs[i - 1][1], latlngs[i][0], latlngs[i][1]);
+      setText('planner-dist', `${(dist / 1000).toFixed(1)} km`);
+    } catch (e) {
+      if (seq === plannerReqSeq) showPlannerError('Routing service unreachable.');
+    }
+  }
+
+  function parseGpxLatLngs(gpx) {
+    const out = [];
+    try {
+      const doc = new DOMParser().parseFromString(gpx, 'application/xml');
+      const pts = doc.getElementsByTagName('trkpt');
+      for (let i = 0; i < pts.length; i++) {
+        const lat = parseFloat(pts[i].getAttribute('lat'));
+        const lon = parseFloat(pts[i].getAttribute('lon'));
+        if (!isNaN(lat) && !isNaN(lon)) out.push([lat, lon]);
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function plannerUndo() {
+    if (plannerWaypoints.length === 0) return;
+    plannerWaypoints.pop();
+    const m = plannerMarkers.pop();
+    if (m) m.remove();
+    refreshPlannedRoute();
+  }
+
+  function plannerClear() {
+    plannerWaypoints = [];
+    plannerMarkers.forEach(m => m.remove());
+    plannerMarkers = [];
+    if (plannerRouteLayer) { plannerRouteLayer.remove(); plannerRouteLayer = null; }
+    plannerGpx = null;
+    refreshPlannedRoute();
+  }
+
+  async function plannerAnalyze() {
+    if (!plannerGpx) { showPlannerError('Add at least 2 points to create a route first.'); return; }
+    const gpx = plannerGpx;
+    exitPlanner();
+    currentGpxText = gpx;
+    showScreen('loading');
+    const form = new FormData();
+    form.append('file', new Blob([gpx], { type: 'application/gpx+xml' }), 'planned.gpx');
+    form.append('weight', weightInput.value || '70');
+    form.append('height', document.getElementById('height-input').value || '170');
+    form.append('pack', document.getElementById('pack-input').value || '0');
+    form.append('fitness', document.getElementById('fitness-select').value || '3');
+    appendPaceOverride(form);
+    const st = currentStartTime();
+    form.append('startHour', st.hour);
+    form.append('startMinute', st.minute);
+    try {
+      const res = await fetch('/api/analyze', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { showScreen('upload'); showError(data.error || 'Could not analyze the planned route.'); return; }
+      routeData = data;
+      document.getElementById('btn-download-gpx').classList.remove('hidden');
+      renderViewer(data);
+      showScreen('viewer');
+    } catch (e) { showScreen('upload'); showError('Network error analyzing the route.'); }
+  }
+
+  function showPlannerError(msg) {
+    const e = document.getElementById('planner-error');
+    e.textContent = msg;
+    e.classList.remove('hidden');
+  }
+  function hidePlannerError() {
+    document.getElementById('planner-error').classList.add('hidden');
   }
 
   function setText(id, value) {
@@ -2336,7 +2918,14 @@
   updateSyncBadge();
   loadAiTip();
 
-  const cached = localStorage.getItem('hikerAid_lastRoute');
+  const sharedMatch = location.pathname.match(/^\/route\/([A-Za-z0-9_-]+)$/);
+  const liveMatch = location.pathname.match(/^\/live\/([A-Za-z0-9_-]+)$/);
+  const cached = (sharedMatch || liveMatch) ? null : localStorage.getItem('hikerAid_lastRoute');
+  if (sharedMatch) {
+    loadSharedRoute(sharedMatch[1]);
+  } else if (liveMatch) {
+    loadLiveView(liveMatch[1]);
+  }
   if (cached) {
     try {
       const data = JSON.parse(cached);

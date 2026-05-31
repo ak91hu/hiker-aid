@@ -9,7 +9,8 @@
 
 **Know when to turn back.** Safety-first GPX route analysis with turnaround
 time, daylight margin, point of no return, and fitness-personalised Tobler
-time estimates. Plus weather, offline maps, 3D terrain, route comparison,
+time estimates. Plus a snap-to-trail route planner, live location sharing with
+automatic overdue alerts, weather, offline maps, 3D terrain, route comparison,
 photo waypoints, and AI coaching.
 
 ### [Live Demo](https://hikeraid.onrender.com)
@@ -24,14 +25,15 @@ photo waypoints, and AI coaching.
 
 | Pillar | Highlights |
 |---|---|
-| **Safety** | Sunset estimate · 30 min buffer · turnaround point · point of no return · **live turn-back countdown** that recomputes from your real pace and the clock while tracking · **always-on SOS button** on every screen once signed in · emergency alerts to friends (with offline SMS fallback) |
-| **Analytics** | Tobler time scaled to your fitness · VAM · grade-adjusted pace · per-km splits · route comparison vs your past attempts with PR badge |
+| **Safety** | Sunset estimate · 30 min buffer · turnaround point · point of no return · **live turn-back countdown** that recomputes from your real pace and the clock while tracking · **off-route deviation warning** · **always-on SOS button** on every screen once signed in · emergency alerts to friends (with offline SMS fallback) · **automatic overdue check-in alert** |
+| **Analytics** | Tobler time scaled to your fitness · **self-calibrated personal pace** learned from your real recorded times · **pack-weight load factor** · VAM · grade-adjusted pace · per-km splits · route comparison vs your past attempts with PR badge |
+| **Planning** | **Draw-a-route planner** with snap-to-trail routing (public BRouter, no API key) · **multi-day staging** by hours/day · **printable / PDF safety card** |
 | **Maps** | Gradient-coloured track · interactive elevation profile · 4 base layers (Streets/Topo/Satellite/Dark) · **3D terrain** (MapLibre + Mapzen DEM) · animated route playback |
 | **Offline** | Service-worker app shell · stale-while-revalidate tile cache · **download tiles for any route in advance** · background-sync of offline activity saves |
 | **Weather** | Open-Meteo current + 12 h forecast · risk banner (OK/Caution/Danger) based on wind, precip, temp, thunderstorm |
 | **AI** | Gemini 2.5 Flash route coaching with fallback to 2.0 Flash · seasonal safety tip on the home screen |
-| **Social** | Add friends by email (auto-invite via Resend) · accept requests · emergency alert to all friends |
-| **Capture** | Live GPS recording → GPX export · **photo waypoints** with GPS-tagged map markers · save to your account |
+| **Social** | Add friends by email (auto-invite via Resend) · accept requests · emergency alert to all friends · **public share links** for routes · **live location sharing (LiveTrack)** with a public follow page |
+| **Capture** | Live GPS recording → GPX export (any analyzed route) · **photo waypoints** with GPS-tagged map markers · save to your account |
 | **Theming** | Light + dark themes with `prefers-color-scheme` and `localStorage` |
 
 Full feature catalogue: [`docs/features.md`](docs/features.md).
@@ -82,7 +84,8 @@ via `render.yaml`, and redeploys on every push to `main`.
 Java 21 · Spring Boot 4.0.6 (Spring Framework 7, Jackson 3, Jakarta EE 11) ·
 PostgreSQL (Render) / H2 (local) · Spring Security OAuth2 (Google) ·
 Thymeleaf · Vanilla JS · Leaflet 1.9.4 · MapLibre GL 4.7.1 ·
-Chart.js 4.5.1 · Open-Meteo · Gemini 2.5/2.0 Flash · Resend.com email.
+Chart.js 4.5.1 · Open-Meteo · BRouter (snap-to-trail routing, no key) ·
+Gemini 2.5/2.0 Flash · Resend.com email.
 
 ---
 
@@ -105,12 +108,14 @@ Easy < 10 · Moderate 10-24 · Hard 25-44 · Very Hard 45-64 · Extreme 65+.
 ### Calorie estimate
 ```
 heightFactor = clamp(1.0 - (heightCm - 170)*0.005, 0.85, 1.15)
-flat    = weight * distKm * 0.7 * heightFactor
-climb   = ascentM * weight * 0.01
-descent = descentM * weight * 0.003
+movingMass = weight + max(0, pack)          // carried load adds mechanical cost, not BMR
+flat    = movingMass * distKm * 0.7 * heightFactor
+climb   = ascentM * movingMass * 0.01
+descent = descentM * movingMass * 0.003
 bmr     = (10*weight + 6.25*heightCm - 200) / 24 * hours
 total   = flat + climb + descent + bmr
 ```
+Pack load also slows pace: `paceFactor *= 1 - min(0.25, (pack/weight) * 0.6)`.
 
 ### Elevation deadband
 3 m streak-based deadband filters GPS noise; typical 20-40 % reduction in

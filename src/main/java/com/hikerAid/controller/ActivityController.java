@@ -243,6 +243,44 @@ public class ActivityController {
         ));
     }
 
+    @PostMapping("/{id}/share")
+    public ResponseEntity<?> share(@AuthenticationPrincipal OAuth2User principal,
+                                   @PathVariable Long id) {
+        UserEntity user = resolveUser(principal);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        ActivityEntity a = activityRepo.findById(id).orElse(null);
+        if (a == null || !a.getUser().getId().equals(user.getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        if (a.getShareToken() == null) {
+            a.setShareToken(randomToken());
+            activityRepo.save(a);
+        }
+        return ResponseEntity.ok(Map.of("token", a.getShareToken(), "url", "/route/" + a.getShareToken()));
+    }
+
+    @DeleteMapping("/{id}/share")
+    public ResponseEntity<?> unshare(@AuthenticationPrincipal OAuth2User principal,
+                                     @PathVariable Long id) {
+        UserEntity user = resolveUser(principal);
+        if (user == null) return ResponseEntity.status(401).build();
+
+        ActivityEntity a = activityRepo.findById(id).orElse(null);
+        if (a == null || !a.getUser().getId().equals(user.getId())) {
+            return ResponseEntity.notFound().build();
+        }
+        a.setShareToken(null);
+        activityRepo.save(a);
+        return ResponseEntity.ok(Map.of("revoked", true));
+    }
+
+    private static String randomToken() {
+        byte[] b = new byte[12];
+        new java.security.SecureRandom().nextBytes(b);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@AuthenticationPrincipal OAuth2User principal,
                                      @PathVariable Long id) {

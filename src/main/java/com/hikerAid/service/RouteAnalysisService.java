@@ -18,12 +18,21 @@ public class RouteAnalysisService {
     private static final int SAFETY_BUFFER_MINUTES = 30;
 
     public AnalysisResult analyze(GpxData data) {
-        return analyzeWithWeight(data, 70.0, 170.0, 3, 8, 0);
+        return analyzeWithWeight(data, 70.0, 170.0, 0.0, 3, 8, 0);
     }
 
-    public AnalysisResult analyzeWithWeight(GpxData data, double weightKg, double heightCm, int fitnessLevel, int startHour, int startMinute) {
+    public AnalysisResult analyzeWithWeight(GpxData data, double weightKg, double heightCm, double packKg, int fitnessLevel, int startHour, int startMinute) {
+        double paceFactor = paceFactorForLevel(fitnessLevel) * loadPaceMultiplier(packKg, weightKg);
+        return analyzeCore(data, weightKg, heightCm, packKg, paceFactor, fitnessLabel(fitnessLevel), startHour, startMinute);
+    }
+
+    public AnalysisResult analyzeWithPace(GpxData data, double weightKg, double heightCm, double packKg, double paceFactor, int startHour, int startMinute) {
+        double pf = paceFactor * loadPaceMultiplier(packKg, weightKg);
+        return analyzeCore(data, weightKg, heightCm, packKg, pf, "Personalized", startHour, startMinute);
+    }
+
+    private AnalysisResult analyzeCore(GpxData data, double weightKg, double heightCm, double packKg, double paceFactor, String fitnessLabel, int startHour, int startMinute) {
         List<TrackPoint> points = flatten(data.segments());
-        double paceFactor = paceFactorForLevel(fitnessLevel);
 
         if (points.size() < 2) {
             return new AnalysisResult(data.name(), data.description(),
@@ -85,7 +94,7 @@ public class RouteAnalysisService {
         double avgSpeedKmh = movingMinutes > 0 ? totalDistKm / (movingMinutes / 60.0) : 0;
 
         int diffScore = difficultyScore(totalDistKm, totalAscent, maxAbsGradient);
-        double calories = estimateCalories(weightKg, heightCm, totalDistKm, totalAscent, totalDescent, movingMinutes);
+        double calories = estimateCalories(weightKg, heightCm, packKg, totalDistKm, totalAscent, totalDescent, movingMinutes);
 
         double vam = movingMinutes > 0 ? totalAscent / (movingMinutes / 60.0) : 0;
         double gapPace = computeGradeAdjustedPace(points, cumDist, paceFactor);
@@ -117,7 +126,7 @@ public class RouteAnalysisService {
 
         int startMinutesOfDay = startHour * 60 + startMinute;
         int dayOfYear = LocalDate.now().getDayOfYear();
-        SafetyAnalysis safety = computeSafety(points, cumDist, paceFactor, fitnessLevel, startMinutesOfDay, dayOfYear);
+        SafetyAnalysis safety = computeSafety(points, cumDist, paceFactor, fitnessLabel, startMinutesOfDay, dayOfYear);
 
         return new AnalysisResult(data.name(), data.description(), stats,
             trackPts, gradientSegs, profile, data.waypoints(), safety, splits);
@@ -213,7 +222,7 @@ public class RouteAnalysisService {
 
     private SafetyAnalysis computeSafety(
             List<TrackPoint> points, double[] cumDist,
-            double paceFactor, int fitnessLevel,
+            double paceFactor, String fitnessLabel,
             int startMinutesOfDay, int dayOfYear) {
 
         int n = points.size();
@@ -281,7 +290,7 @@ public class RouteAnalysisService {
 
         return new SafetyAnalysis(
             paceFactor,
-            fitnessLabel(fitnessLevel),
+            fitnessLabel,
             personalizedMoving,
             personalizedTotal,
             sunsetStr,
@@ -319,6 +328,13 @@ public class RouteAnalysisService {
         if (latDeg > 0 && dayOfYear >= 80 && dayOfYear <= 300) sunsetHour += 1.0;
         if (latDeg < 0 && (dayOfYear >= 274 || dayOfYear <= 90)) sunsetHour += 1.0;
         return (int) Math.round(sunsetHour * 60);
+    }
+
+    private double loadPaceMultiplier(double packKg, double bodyKg) {
+        if (packKg <= 0 || bodyKg <= 0) return 1.0;
+        double ratio = packKg / bodyKg;
+        double slowdown = Math.min(0.25, ratio * 0.6);
+        return 1.0 - slowdown;
     }
 
     private double paceFactorForLevel(int level) {
@@ -419,13 +435,14 @@ public class RouteAnalysisService {
         return "Extreme";
     }
 
-    private double estimateCalories(double weightKg, double heightCm, double distKm, double ascentM, double descentM, long movingMinutes) {
+    private double estimateCalories(double weightKg, double heightCm, double packKg, double distKm, double ascentM, double descentM, long movingMinutes) {
         double heightFactor = 1.0 - (heightCm - 170) * 0.005;
         heightFactor = Math.max(0.85, Math.min(1.15, heightFactor));
 
-        double flat = weightKg * distKm * 0.7 * heightFactor;
-        double climb = ascentM * weightKg * 0.01;
-        double descent = descentM * weightKg * 0.003;
+        double movingMass = weightKg + Math.max(0, packKg);
+        double flat = movingMass * distKm * 0.7 * heightFactor;
+        double climb = ascentM * movingMass * 0.01;
+        double descent = descentM * movingMass * 0.003;
 
         double bmrPerHour = (10 * weightKg + 6.25 * heightCm - 200) / 24.0;
         double bmrDuringHike = bmrPerHour * (movingMinutes / 60.0);
@@ -533,6 +550,59 @@ public class RouteAnalysisService {
     private RouteStats emptyStats(int pointCount) {
         return new RouteStats(0, 0, 0, 0, 0, 0, 0, 0, "Unknown", 0, 0, pointCount, 0,
             false, false, 0, 0);
+    }
+
+    public record PaceCalibrationSample(boolean qualifies, double distanceKm,
+                                        long baselineMovingMinutes, double actualMovingMinutes) {}
+
+    public PaceCalibrationSample paceCalibrationSample(GpxData data) {
+        List<TrackPoint> points = flatten(data.segments());
+        if (points.size() < 2) return new PaceCalibrationSample(false, 0, 0, 0);
+
+        double[] cumDist = new double[points.size()];
+        for (int i = 1; i < points.size(); i++) {
+            TrackPoint prev = points.get(i - 1);
+            TrackPoint curr = points.get(i);
+            cumDist[i] = cumDist[i - 1] + haversine(prev.lat(), prev.lon(), curr.lat(), curr.lon());
+        }
+
+        double distKm = cumDist[points.size() - 1] / 1000.0;
+        long baseline = estimateTimeMinutes(points, cumDist);
+        double actualMoving = actualMovingMinutes(points, cumDist);
+
+        boolean qualifies = distKm >= 1.0 && baseline > 0 && actualMoving >= 10;
+        if (qualifies) {
+            double impliedSpeed = distKm / (actualMoving / 60.0);
+            if (impliedSpeed < 0.5 || impliedSpeed > 12) qualifies = false;
+        }
+        return new PaceCalibrationSample(qualifies, round2(distKm), baseline, actualMoving);
+    }
+
+    private double actualMovingMinutes(List<TrackPoint> points, double[] cumDist) {
+        double movingSec = 0;
+        boolean any = false;
+        for (int i = 1; i < points.size(); i++) {
+            Long t1 = epochSeconds(points.get(i - 1).time());
+            Long t2 = epochSeconds(points.get(i).time());
+            if (t1 == null || t2 == null) continue;
+            long dt = t2 - t1;
+            if (dt <= 0 || dt > 600) continue;
+            double distM = cumDist[i] - cumDist[i - 1];
+            double speedKmh = (distM / 1000.0) / (dt / 3600.0);
+            if (speedKmh >= 0.5 && speedKmh <= 15) { movingSec += dt; any = true; }
+        }
+        return any ? movingSec / 60.0 : -1;
+    }
+
+    private Long epochSeconds(String time) {
+        if (time == null || time.isBlank()) return null;
+        try { return java.time.Instant.parse(time).getEpochSecond(); }
+        catch (Exception ignored) {}
+        try { return java.time.OffsetDateTime.parse(time).toInstant().getEpochSecond(); }
+        catch (Exception ignored) {}
+        try { return java.time.LocalDateTime.parse(time).toInstant(java.time.ZoneOffset.UTC).getEpochSecond(); }
+        catch (Exception ignored) {}
+        return null;
     }
 
     private double round1(double v) { return Math.round(v * 10.0) / 10.0; }

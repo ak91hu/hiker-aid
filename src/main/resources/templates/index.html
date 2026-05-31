@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=21">
+    <link rel="stylesheet" href="/css/style.css?v=23">
     <script>
       // Apply theme before paint to avoid flash
       (function () {
@@ -162,6 +162,10 @@
                 <label for="height-input">Height</label>
                 <div class="input-unit"><input type="number" id="height-input" value="170" min="120" max="220" step="1"><span>cm</span></div>
             </div>
+            <div class="body-input">
+                <label for="pack-input">Pack</label>
+                <div class="input-unit"><input type="number" id="pack-input" value="0" min="0" max="60" step="1"><span>kg</span></div>
+            </div>
             <div class="body-input fitness-input">
                 <label for="fitness-select">Fitness</label>
                 <select id="fitness-select">
@@ -175,6 +179,10 @@
         </div>
 
         <input type="hidden" id="start-time">
+        <label id="pace-cal-row" class="pace-cal-row hidden">
+            <input type="checkbox" id="use-measured-pace">
+            <span id="pace-cal-text"></span>
+        </label>
         <div id="upload-error" class="error-banner hidden"></div>
     </div>
 
@@ -210,6 +218,7 @@
     </div>
 
     <button id="btn-record" class="record-btn">Record a Hike</button>
+    <button id="btn-plan" class="record-btn plan-btn">Plan a Route</button>
 
     <a id="login-btn" href="/oauth2/authorization/google" class="google-btn">
         <svg viewBox="0 0 48 48" width="20" height="20"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 019.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.99 23.99 0 000 24c0 3.77.9 7.35 2.56 10.52l7.97-5.93z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 5.93C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -266,6 +275,11 @@
                     <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/>
                 </svg>
             </button>
+            <button id="btn-multiday" class="header-btn" aria-label="Multi-day plan" title="Split route into daily stages">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                </svg>
+            </button>
             <button id="btn-weather" class="header-btn weather-btn" aria-label="Weather" title="Weather forecast">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
@@ -274,6 +288,11 @@
             <button id="btn-export" class="header-btn" aria-label="Download summary" title="Download route summary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+            </button>
+            <button id="btn-print" class="header-btn" aria-label="Print safety card" title="Print / save safety card as PDF">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
                 </svg>
             </button>
             <button id="btn-layers" class="header-btn" aria-label="Change map layer" title="Map layers">
@@ -294,6 +313,30 @@
     <!-- Map -->
     <div id="map" aria-label="Route map"></div>
     <div id="map3d" class="map3d hidden" aria-label="3D terrain view"></div>
+
+    <!-- Live tracking viewer overlay (public /live/{token} page) -->
+    <div id="live-info" class="live-info hidden"></div>
+
+    <!-- Route planner panel -->
+    <div id="planner-panel" class="planner-panel hidden">
+        <div class="planner-head">
+            <span class="planner-title">Plan a route</span>
+            <button id="btn-planner-exit" class="close-btn" aria-label="Exit planner">&#10005;</button>
+        </div>
+        <p class="planner-help">Tap the map to drop points. HikerAid snaps them to trails and paths.</p>
+        <div class="planner-mode">
+            <label><input type="radio" name="planmode" value="hike" checked> Hiking</label>
+            <label><input type="radio" name="planmode" value="trek"> Trekking</label>
+            <label><input type="radio" name="planmode" value="walk"> Walking</label>
+        </div>
+        <div class="planner-stats"><span id="planner-points">0 points</span><span id="planner-dist"></span></div>
+        <div class="planner-actions">
+            <button id="btn-plan-undo" class="planner-btn">Undo</button>
+            <button id="btn-plan-clear" class="planner-btn">Clear</button>
+            <button id="btn-plan-analyze" class="planner-btn primary">Analyze</button>
+        </div>
+        <div id="planner-error" class="planner-error hidden"></div>
+    </div>
 
     <!-- Gradient legend (overlaid on map) -->
     <div id="gradient-legend" class="gradient-legend">
@@ -379,6 +422,7 @@
             <button id="btn-stop-track" class="stop-btn">Stop</button>
         </div>
         <div id="t-turnback-banner" class="t-turnback hidden"></div>
+        <div id="t-offroute-banner" class="t-offroute hidden"></div>
         <div class="tracking-stats">
             <div class="t-stat"><span id="t-progress">0%</span><span>Complete</span></div>
             <div class="t-stat"><span id="t-remaining-dist">—</span><span>Remaining</span></div>
@@ -386,6 +430,20 @@
             <div class="t-stat"><span id="t-remaining-time">—</span><span>Est. finish</span></div>
             <div class="t-stat"><span id="t-daylight">—</span><span>Daylight left</span></div>
             <div class="t-stat"><span id="t-turnback">—</span><span>Turn back</span></div>
+        </div>
+        <div class="live-share">
+            <label class="live-share-row">
+                <span>Tell a friend you'll be back by</span>
+                <input type="time" id="checkin-time">
+            </label>
+            <button id="btn-live-share" class="live-share-btn">Share live location &amp; check-in</button>
+            <div id="live-share-active" class="live-share-active hidden">
+                <span id="live-share-status">Live sharing is on</span>
+                <div class="live-share-actions">
+                    <button id="btn-live-copy" class="live-copy-btn">Copy link</button>
+                    <button id="btn-live-stop" class="live-stop-btn">Stop sharing</button>
+                </div>
+            </div>
         </div>
         <button id="btn-emergency" class="emergency-btn emergency-trigger hidden" title="Send emergency alert to friends">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -510,6 +568,25 @@
         </div>
     </div>
 
+    <!-- Multi-day plan panel -->
+    <div id="multiday-panel" class="splits-panel hidden">
+        <div class="splits-panel-header">
+            <span class="splits-panel-title">Multi-day Plan</span>
+            <button id="btn-close-multiday" class="close-btn" aria-label="Close multi-day panel">&#10005;</button>
+        </div>
+        <div class="multiday-controls">
+            <label for="multiday-hours">Hiking hours per day</label>
+            <input type="number" id="multiday-hours" value="6" min="2" max="12" step="0.5">
+        </div>
+        <div class="splits-table-wrap">
+            <table class="splits-table">
+                <thead><tr><th>Day</th><th>km mark</th><th>Dist</th><th>Time</th><th>Gain</th><th>Loss</th></tr></thead>
+                <tbody id="multiday-tbody"></tbody>
+            </table>
+        </div>
+        <p id="multiday-note" class="multiday-note"></p>
+    </div>
+
     <!-- AI Analysis panel -->
     <div id="ai-panel" class="ai-panel hidden">
         <div class="ai-panel-header">
@@ -566,10 +643,12 @@
     </div>
 </div>
 
+<div id="print-card" class="print-card" aria-hidden="true"></div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-<script src="/js/map.js?v=18"></script>
-<script src="/js/elevation.js?v=18"></script>
-<script src="/js/app.js?v=21"></script>
+<script src="/js/map.js?v=23"></script>
+<script src="/js/elevation.js?v=23"></script>
+<script src="/js/app.js?v=23"></script>
 </body>
 </html>

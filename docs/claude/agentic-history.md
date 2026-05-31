@@ -4,6 +4,46 @@ A running log of major Claude-driven changes to HikerAid, with the
 lessons that surfaced. Useful for future sessions (to avoid re-treading
 the same ground) and for humans curious about how the project evolved.
 
+## 2026-05-31 — Eleven competitive features: planner, LiveTrack, sharing, pace model
+
+A second large batch. Added **pack-weight load** (calories + pace), a live
+**off-route deviation warning**, a **self-calibrating personal pace model**
+(learned from real recorded times), **public route share links**, **live
+location sharing (LiveTrack)** with a public follow page, **automatic overdue
+check-in alerts** (`@Scheduled`), **universal GPX export**, a **printable/PDF
+safety card**, a **snap-to-trail route planner** (BRouter proxy, no key), and
+**multi-day staging**. Also fixed the `viewActivity` missing-height bug found in
+the prior review. New entities/controllers: `TrackingSessionEntity`,
+`TrackingController`, `PublicController`, `RoutePlannerController`,
+`OverdueAlertService`. Tests grew 87 → 91; cache bumped v21 → v23.
+
+**Approach.** One conversation, 11 tasks via `TaskCreate`, build green between
+each feature. A full `/code-review` pass (run inline, not via subagents — full
+context was already in-session) followed, fixing six findings before push.
+
+**Lessons.**
+- **Hard rule from the user: never fabricate data.** Heart rate was explicitly
+  rejected (not measured). This shaped every feature — the pace model needs ≥3
+  genuinely-timed hikes or returns `calibrated:false`; LiveTrack shows "waiting
+  for first GPS fix" rather than a guessed point. Captured as a memory.
+- **Store time as `Instant`, not `LocalDateTime`.** The review caught a real
+  safety bug: the check-in time was sent as a zoneless wall-clock and compared
+  against server-local `now()` (UTC on Render), so overdue alerts would fire at
+  the wrong time for any non-UTC user, and live-page "N min ago" was skewed.
+  Fixed by going UTC `Instant` end-to-end and sending `Date.toISOString()`.
+- **Proxy third-party routing server-side.** Calling BRouter from the browser
+  would hit CORS; a thin `/api/route/plan` proxy with server-built, validated
+  params avoids it and keeps the planner key-free.
+- **Guard async callbacks against mode changes.** An in-flight planner route
+  request could resolve after the user exited and re-draw a stray polyline; the
+  fix is a `!plannerActive` + sequence check after the await. Same class of bug
+  the prior batch hit with comparison fetches.
+- **Cache derived work keyed by a cheap signal.** `/api/user/pace` parses up to
+  50 GPX files; caching by activity count means it only recomputes when the set
+  actually changes, keeping the dashboard load cheap on the free tier.
+- **Spring Framework 7:** `UriComponentsBuilder.fromHttpUrl` is gone — use
+  `fromUriString`.
+
 ## 2026-05-29 — Comment-free refactor, live turn-back, always-on SOS, project skills
 
 Stripped all explanatory comments from `src/main` (keeping the XXE and

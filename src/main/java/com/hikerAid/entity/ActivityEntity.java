@@ -33,6 +33,9 @@ public class ActivityEntity {
     private Double endLat;
     private Double endLon;
 
+    @Column(unique = true)
+    private String shareToken;
+
     @Lob
     private String gpxData;
 
@@ -57,6 +60,7 @@ public class ActivityEntity {
     public Double getStartLon() { return startLon; }
     public Double getEndLat() { return endLat; }
     public Double getEndLon() { return endLon; }
+    public String getShareToken() { return shareToken; }
     public String getGpxData() { return gpxData; }
 
     public void setUser(UserEntity user) { this.user = user; }
@@ -77,5 +81,6 @@ public class ActivityEntity {
     public void setStartLon(Double v) { this.startLon = v; }
     public void setEndLat(Double v) { this.endLat = v; }
     public void setEndLon(Double v) { this.endLon = v; }
+    public void setShareToken(String v) { this.shareToken = v; }
     public void setGpxData(String gpxData) { this.gpxData = gpxData; }
 }

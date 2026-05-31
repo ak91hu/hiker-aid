@@ -77,6 +77,37 @@ public class EmailService {
         sendViaResend(toEmail, subject, body);
     }
 
+    public void sendOverdueAlert(String toEmail, String hikerName, Double latitude, Double longitude,
+                                 double accuracyM, String expectedReturn) throws Exception {
+        String subject = "OVERDUE - " + hikerName + " has not returned from a hike";
+        StringBuilder body = new StringBuilder();
+        body.append("--- OVERDUE HIKER ALERT ---\n\n");
+        body.append(hikerName).append(" set an expected return time on HikerAid and has not checked in.\n");
+        if (expectedReturn != null) body.append("Expected back by: ").append(expectedReturn).append("\n");
+        body.append("\n");
+        if (latitude != null && longitude != null) {
+            String lat = String.format("%.7f", latitude);
+            String lon = String.format("%.7f", longitude);
+            String accuracy = accuracyM > 0 ? String.format("%.0f", accuracyM) + " meters" : "unknown";
+            body.append("LAST KNOWN LOCATION\n");
+            body.append("  Latitude:  ").append(lat).append("\n");
+            body.append("  Longitude: ").append(lon).append("\n");
+            body.append("  Accuracy:  ").append(accuracy).append("\n\n");
+            body.append("  >> Open in Google Maps:\n");
+            body.append("  >> https://www.google.com/maps?q=").append(lat).append(",").append(lon).append("\n\n");
+        } else {
+            body.append("No GPS location was recorded for this hike.\n\n");
+        }
+        body.append("WHAT TO DO\n");
+        body.append("  1. Try calling ").append(hikerName).append(" directly\n");
+        body.append("  2. If no answer, call local emergency services:\n");
+        body.append("     Europe: 112  |  US/Canada: 911  |  UK: 999\n");
+        body.append("  3. Share any location details above with rescuers\n\n");
+        body.append("This alert was sent automatically by HikerAid because a planned return time passed.\n");
+        body.append("https://hikeraid.onrender.com");
+        sendViaResend(toEmail, subject, body.toString());
+    }
+
     public void sendTestEmail(String toEmail) throws Exception {
         String subject = "HikerAid - Email System Test";
         String body = "This is a test email from the HikerAid admin panel.\n\n"

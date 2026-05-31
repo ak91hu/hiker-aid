@@ -43,6 +43,30 @@ Five fitness levels scale Tobler time:
 
 Rest breaks are added at 10 min/hour for hikes over 60 min.
 
+### Pack Weight (Load)
+An optional pack/load weight (0-60 kg) on the upload form feeds the analysis:
+- **Calories** — carried mass is added to the mechanical work terms
+  (`movingMass = weight + pack`) for flat/climb/descent, but **not** to BMR.
+- **Pace** — a documented load factor slows Tobler pace,
+  `paceFactor *= 1 - min(0.25, (pack/weight) * 0.6)`, applied alongside the
+  fitness factor so it flows through time, splits, and the safety/turn-back math.
+
+Implementation: `RouteAnalysisService.loadPaceMultiplier()` and `estimateCalories()`.
+
+### Self-Calibrated Personal Pace
+Instead of only self-rating fitness, HikerAid can learn your real pace from your
+saved hikes. `GET /api/user/pace` compares each activity's **actual moving time**
+(derived from genuine GPS timestamps, with stopped segments and >10 min gaps
+excluded) against the Tobler baseline, and distance-weights the ratios into a
+single personal pace factor (clamped 0.5-2.0). It needs at least 3 qualifying
+timed hikes — otherwise it returns `calibrated:false` and shows nothing (no
+fabricated value). When calibrated, a "Use my measured pace" toggle on the
+upload form sends an explicit `paceFactor` override to `/api/analyze`. The result
+is cached per user, keyed by activity count, so it only recomputes when the set
+of activities changes.
+
+Implementation: `RouteAnalysisService.paceCalibrationSample()`, `UserController.personalPace()`.
+
 ### Advanced Metrics
 - **VAM** (Vertical Ascent Meters per hour) — `totalAscent / movingHours`
 - **GAP** (Grade-Adjusted Pace) — flat-equivalent pace using Tobler. Per-segment
@@ -93,6 +117,29 @@ the hiker falls behind. The computation is fully client-side using the
 `cumForwardMinutes` / `cumReturnMinutes` arrays from `/api/analyze`, so it keeps
 working with no signal.
 
+### Off-Route Deviation Warning
+During a GPS-tracked hike, the tracking panel shows an amber banner when the
+hiker strays from the planned line. Distance is the real perpendicular distance
+to the nearest route segment (`HikerMap.distanceToRouteMeters()`); the threshold
+is `max(75 m, 1.5 × GPS accuracy)` so a noisy fix never false-alarms. It clears
+automatically once back on route. Fully client-side, real GPS only.
+
+### Live Location Sharing (LiveTrack)
+While tracking, "Share live location" starts a `TrackingSession` and produces a
+public `/live/{token}` link. The hiker's browser pushes real GPS pings; the
+public page polls every 15 s and shows the hiker's **actual last position**, ETA
+context, and timestamps on a map. Until the first ping arrives it shows an
+explicit "waiting for first GPS fix" state — never a guessed point. Polling stops
+once the session ends. All session timestamps are stored and compared as UTC
+`Instant`s so behaviour is timezone-correct regardless of server or device zone.
+
+### Automatic Overdue Alert (Check-In)
+Before setting off, the hiker can set an expected return time. `OverdueAlertService`
+runs every 60 s (`@Scheduled`, `@EnableScheduling`); when an active session passes
+its expected-return instant, it emails every accepted friend the hiker's last
+known position via Resend. The sent-flag is set before emailing so a failure
+cannot spam the alert every minute. Requires `RESEND_API_KEY`.
+
 ### Emergency Alert
 - **Always-on SOS button.** A red floating SOS button appears on every screen
   the moment you sign in (it does not wait for friends or a route) — emergency
@@ -113,6 +160,25 @@ working with no signal.
 
   The SMS path works on cellular voice/SMS where data is dead, and covers the
   no-friends case too — your coordinates still get out.
+
+## Route Planning
+
+### Draw-a-Route Planner (snap-to-trail)
+"Plan a Route" enters a map-drawing mode: tap to drop waypoints and HikerAid
+snaps them to actual trails and paths. Routing is proxied server-side through
+the public **BRouter** instance (`POST /api/route/plan`, profiles hike/trek/walk)
+— no API key, matching the env-vars-only convention, and server-side to avoid
+CORS. The snapped GPX (with BRouter elevations) is drawn live; "Analyze" feeds it
+straight into the standard `/api/analyze` pipeline so every stat and safety
+metric comes for free. Undo/clear and live distance readout included.
+
+Implementation: `RoutePlannerController`, planner block in `app.js`.
+
+### Multi-Day Staging
+The "Multi-day Plan" panel splits a route into daily stages by an
+hours-of-hiking-per-day budget. Stages are derived from the real per-km splits
+(distance, moving time, ascent, descent per day) — no fabricated data. Useful
+for thru-hikes and hut-to-hut trips.
 
 ## Map & Visualization
 
@@ -262,7 +328,18 @@ Live GPS recording with `watchPosition`. Real-time UI shows distance, duration,
 altitude, and pace. Generates a standard GPX 1.1 document on stop. Saved
 recordings link back to any captured photos via the recording session ID.
 
-## Export
+## Sharing & Export
 
-- Download GPX — exports the loaded or recorded route as `.gpx`
-- Download summary — plain-text report of all stats + safety analysis
+- **Public share links** — share any saved activity via a read-only
+  `/route/{token}` link (`POST/DELETE /api/activities/{id}/share`). The shared
+  page reuses the full analysis viewer with owner-only controls hidden; the owner
+  can revoke the token at any time.
+- **Download GPX** — exports the loaded, recorded, *or saved* route as `.gpx`
+  (for upload to Strava/Garmin/Fit). Two-way Strava/Fit sync is intentionally not
+  built (would require fabricated/OAuth-gated data and a third-party app
+  registration).
+- **Printable / PDF safety card** — the print button renders a paper-friendly
+  card (stats, sunset/daylight margin, turnaround, point of no return, endpoint
+  coordinates) via a `@media print` stylesheet; "Save as PDF" from the print
+  dialog. An offline paper backup that fits the safety theme.
+- **Download summary** — plain-text report of all stats + safety analysis.

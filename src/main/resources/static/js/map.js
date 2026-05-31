@@ -192,6 +192,40 @@ const HikerMap = (() => {
     if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
   }
 
+  function clearRoute() {
+    if (gradientLayer) gradientLayer.clearLayers();
+    if (waypointLayer) waypointLayer.clearLayers();
+    if (safetyLayer) safetyLayer.clearLayers();
+    if (photoLayer) photoLayer.clearLayers();
+    clearGpsMarker();
+    trackPoints = [];
+  }
+
+  function pointToSegmentMeters(lat, lon, a, b) {
+    const mPerDegLat = 111320;
+    const mPerDegLon = 111320 * Math.cos(lat * Math.PI / 180);
+    const px = (lon - a[1]) * mPerDegLon, py = (lat - a[0]) * mPerDegLat;
+    const vx = (b[1] - a[1]) * mPerDegLon, vy = (b[0] - a[0]) * mPerDegLat;
+    const len2 = vx * vx + vy * vy;
+    let t = len2 > 0 ? (px * vx + py * vy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const dx = px - t * vx, dy = py - t * vy;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function distanceToRouteMeters(lat, lon) {
+    if (trackPoints.length === 0) return Infinity;
+    if (trackPoints.length === 1) {
+      return pointToSegmentMeters(lat, lon, trackPoints[0], trackPoints[0]);
+    }
+    let best = Infinity;
+    for (let i = 1; i < trackPoints.length; i++) {
+      const d = pointToSegmentMeters(lat, lon, trackPoints[i - 1], trackPoints[i]);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
   function nearestPointIndex(lat, lon) {
     let best = 0, bestDist = Infinity;
     for (let i = 0; i < trackPoints.length; i++) {
@@ -259,6 +293,6 @@ const HikerMap = (() => {
   }
 
   return { init, renderRoute, setLayer, updateGpsPosition, clearGpsMarker,
-           nearestPointIndex, showPositionAtIndex, showSafetyMarkers, getTrackPoints, getMap,
-           showPhotoMarkers, clearPhotoMarkers };
+           nearestPointIndex, distanceToRouteMeters, showPositionAtIndex, showSafetyMarkers, getTrackPoints, getMap,
+           showPhotoMarkers, clearPhotoMarkers, clearRoute };
 })();

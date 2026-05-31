@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hikerAid-v21';
+const CACHE_NAME = 'hikerAid-v23';
 const TILE_CACHE = 'hikerAid-tiles-v2';
 
 const APP_SHELL = [
