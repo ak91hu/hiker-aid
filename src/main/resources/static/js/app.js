@@ -10,6 +10,11 @@
   let trackStartIdx = 0;
   let elevationCollapsed = false;
   let lastGpsPosition = null;
+  let wakeLock = null;
+  let voiceEnabled = true;
+  try { voiceEnabled = localStorage.getItem('hikerAid_voice') !== '0'; } catch (e) {}
+  let lastSpokenCategory = null;
+  let lastSpokenOffRoute = false;
 
   let isRecording = false;
   let recordedPoints = [];
@@ -217,6 +222,47 @@
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  function speak(text) {
+    if (!voiceEnabled || !text || !('speechSynthesis' in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      u.lang = 'en-US';
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  function stopSpeaking() {
+    try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) {}
+  }
+
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { wakeLock = null; }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      try { wakeLock.release(); } catch (e) {}
+      wakeLock = null;
+    }
+  }
+
+  function updateVoiceButton() {
+    const btn = document.getElementById('btn-voice');
+    if (!btn) return;
+    const supported = 'speechSynthesis' in window;
+    btn.classList.toggle('muted', !voiceEnabled || !supported);
+    btn.setAttribute('aria-pressed', String(voiceEnabled && supported));
+    btn.title = !supported ? 'Voice guidance not supported on this device'
+      : voiceEnabled ? 'Spoken safety guidance: on' : 'Spoken safety guidance: off';
   }
 
   function applyTheme(theme) {
@@ -1376,6 +1422,7 @@
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
 
+    requestWakeLock();
     recordInterval = setInterval(updateRecordTimer, 1000);
   }
 
@@ -1430,6 +1477,7 @@
     if (recordWatchId !== null) { navigator.geolocation.clearWatch(recordWatchId); recordWatchId = null; }
     if (recordInterval) { clearInterval(recordInterval); recordInterval = null; }
     isRecording = false;
+    releaseWakeLock();
 
     document.getElementById('recording-overlay').classList.add('hidden');
 
@@ -2452,6 +2500,20 @@
   document.getElementById('btn-track').addEventListener('click', toggleTracking);
   document.getElementById('btn-stop-track').addEventListener('click', stopTracking);
 
+  document.getElementById('btn-voice')?.addEventListener('click', () => {
+    voiceEnabled = !voiceEnabled;
+    try { localStorage.setItem('hikerAid_voice', voiceEnabled ? '1' : '0'); } catch (e) {}
+    updateVoiceButton();
+    if (voiceEnabled) speak('Voice guidance on'); else stopSpeaking();
+  });
+  updateVoiceButton();
+
+  function maybeSpeakTurn(category, phrase) {
+    if (category === lastSpokenCategory) return;
+    lastSpokenCategory = category;
+    speak(phrase);
+  }
+
   function toggleTracking() {
     if (isTracking) stopTracking();
     else startTracking();
@@ -2466,8 +2528,12 @@
 
     isTracking = true;
     trackStartTime = null;
+    lastSpokenCategory = null;
+    lastSpokenOffRoute = false;
     document.getElementById('btn-track').classList.add('active');
     document.getElementById('tracking-panel').classList.remove('hidden');
+    requestWakeLock();
+    speak('Tracking started. I will warn you about turn-back time and going off route.');
 
     gpsWatchId = navigator.geolocation.watchPosition(
       pos => {
@@ -2521,8 +2587,16 @@
     if (d > threshold) {
       el.textContent = `Off route — ${Math.round(d)} m from the planned path. Check your map and rejoin the track.`;
       el.classList.remove('hidden');
+      if (!lastSpokenOffRoute) {
+        lastSpokenOffRoute = true;
+        speak(`Off route. You are ${Math.round(d)} metres from the planned path.`);
+      }
     } else {
       el.classList.add('hidden');
+      if (lastSpokenOffRoute) {
+        lastSpokenOffRoute = false;
+        speak('Back on the planned route.');
+      }
     }
   }
 
@@ -2548,6 +2622,7 @@
       banner.classList.add('hidden');
       setText('t-daylight', '—');
       setText('t-turnback', '—');
+      lastSpokenCategory = null;
       return;
     }
 
@@ -2570,6 +2645,7 @@
       banner.classList.add('safety-danger');
       banner.textContent = 'Past the safe daylight cutoff. Use a headlamp and descend the fastest safe way.';
       setText('t-turnback', 'now');
+      maybeSpeakTurn('past-cutoff', 'Past the safe daylight cutoff. Use a headlamp and descend the fastest safe way.');
       return;
     }
 
@@ -2577,6 +2653,8 @@
       banner.classList.add('safety-ok');
       banner.textContent = `On track to finish with ${formatTime(Math.round(daylightLeft - timeToFinish))} of daylight to spare.`;
       setText('t-turnback', 'not needed');
+      const wasWarned = lastSpokenCategory && lastSpokenCategory !== 'ok';
+      maybeSpeakTurn('ok', wasWarned ? 'You are back on track to finish before dark.' : null);
       return;
     }
 
@@ -2584,6 +2662,7 @@
       banner.classList.add('safety-danger');
       banner.textContent = 'Not enough daylight to return to the start. Descend now or call for help.';
       setText('t-turnback', 'now');
+      maybeSpeakTurn('return-danger', 'Warning. Not enough daylight to return to the start. Descend now or call for help.');
       return;
     }
 
@@ -2598,10 +2677,12 @@
       banner.classList.add('safety-danger');
       banner.textContent = 'Turn back now to reach the start before dark.';
       setText('t-turnback', 'now');
+      maybeSpeakTurn('turn-now', 'Turn back now to reach the start before dark.');
     } else {
       banner.classList.add('safety-caution');
       banner.textContent = `Turn back by ${clockFromNow(minsToTurn)} to reach the start before dark.`;
       setText('t-turnback', `by ${clockFromNow(minsToTurn)}`);
+      maybeSpeakTurn('turn-soon', `Plan to turn back by ${clockFromNow(minsToTurn)} to reach the start before dark.`);
     }
   }
 
@@ -2611,6 +2692,10 @@
     isTracking = false;
     trackStartTime = null;
     lastGpsPosition = null;
+    lastSpokenCategory = null;
+    lastSpokenOffRoute = false;
+    releaseWakeLock();
+    stopSpeaking();
     HikerMap.clearGpsMarker();
     if (liveShareToken) stopLiveShare();
     document.getElementById('btn-track').classList.remove('active');
@@ -2950,8 +3035,9 @@
     });
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && navigator.onLine && currentUser) {
-      syncPendingActivities();
+    if (document.visibilityState === 'visible') {
+      if ((isTracking || isRecording) && !wakeLock) requestWakeLock();
+      if (navigator.onLine && currentUser) syncPendingActivities();
     }
   });
 })();
