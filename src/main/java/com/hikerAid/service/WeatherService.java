@@ -24,8 +24,17 @@ public class WeatherService {
     private static final int MAX_HOURS = 24;
     private static final int CACHE_MAX_ENTRIES = 512;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+    public WeatherService() {
+        this(new RestTemplate(), new ObjectMapper());
+    }
+
+    public WeatherService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
     private final Map<String, CacheEntry> cache = Collections.synchronizedMap(
         new LinkedHashMap<>(64, 0.75f, true) {
             @Override
@@ -162,7 +171,7 @@ public class WeatherService {
             level = elevate(level, "CAUTION");
             summary.append("Snow forecast. ");
         }
-        if (summary.length() == 0) summary.append("Conditions look favourable for hiking.");
+        if (summary.length() == 0) summary.append("Conditions look favorable for hiking.");
 
         return new WeatherForecast.WeatherRisk(level, summary.toString().trim());
     }

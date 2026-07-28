@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HikerAid E2E Test Suite" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>E2E High Altitude Alpine Test Route</name>
+  </metadata>
+  <trk>
+    <name>E2E High Altitude Alpine Test Route</name>
+    <trkseg>
+      <trkpt lat="47.26000" lon="11.39000"><ele>2000.0</ele><time>2026-07-28T08:00:00Z</time></trkpt>
+      <trkpt lat="47.26500" lon="11.39500"><ele>2150.0</ele><time>2026-07-28T08:20:00Z</time></trkpt>
+      <trkpt lat="47.27000" lon="11.40000"><ele>2300.0</ele><time>2026-07-28T08:45:00Z</time></trkpt>
+      <trkpt lat="47.27500" lon="11.40500"><ele>2450.0</ele><time>2026-07-28T09:10:00Z</time></trkpt>
+      <trkpt lat="47.28000" lon="11.41000"><ele>2580.0</ele><time>2026-07-28T09:40:00Z</time></trkpt>
+      <trkpt lat="47.28500" lon="11.41500"><ele>2650.0</ele><time>2026-07-28T10:05:00Z</time></trkpt>
+      <trkpt lat="47.29000" lon="11.42000"><ele>2500.0</ele><time>2026-07-28T10:30:00Z</time></trkpt>
+      <trkpt lat="47.29500" lon="11.42500"><ele>2350.0</ele><time>2026-07-28T10:55:00Z</time></trkpt>
+      <trkpt lat="47.30000" lon="11.43000"><ele>2100.0</ele><time>2026-07-28T11:20:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

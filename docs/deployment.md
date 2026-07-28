@@ -79,8 +79,9 @@ auto-provisioning. H2 file-based for local dev when no `DATABASE_URL` is set
 Tables are auto-created/updated via Hibernate `ddl-auto=update`. Never drops
 columns or tables — additive only.
 
-> **Render free-tier PostgreSQL expires every 90 days.** You'll get a renewal
-> email; just click renew.
+Render plans, retention policies, and renewal terms can change. Check the
+current Render documentation before relying on a particular plan for
+persistent production data, and maintain an independent backup.
 
 ## CI/CD Pipeline
 
@@ -99,7 +100,7 @@ GitHub Actions (`.github/workflows/ci.yml`):
 | `ADMIN_EMAIL` | CI build |
 | `RESEND_API_KEY` | CI build |
 
-## Docker
+## Docker & Container JVM Optimization
 
 ```bash
 docker build -t hikeraid .
@@ -112,8 +113,28 @@ docker run -p 8080:8080 \
   hikeraid
 ```
 
-Multi-stage build: JDK 21 Alpine (compile) -> JRE 21 Alpine (runtime, ~180 MB
-image).
+Multi-stage Docker build: `eclipse-temurin:21-jdk-alpine` (builder) -> `eclipse-temurin:21-jre-alpine` (runtime, lightweight ~180 MB image).
+
+### Memory-Constrained JVM Runtime Flags
+
+The `Dockerfile` configures JVM parameters intended for small container
+instances:
+
+| JVM Flag | Purpose & Impact |
+|---|---|
+| `-XX:+UseSerialGC` | Switches to single-threaded GC, saving memory overhead compared to G1/Parallel GC on single-core hosts |
+| `-XX:MaxRAMPercentage=75.0` | Caps the Java heap at 75% of memory available to the JVM, reserving headroom for native allocations |
+| `-XX:MaxMetaspaceSize=128m` | Caps metaspace memory allocation to avoid native memory exhaustion |
+| `-XX:+TieredCompilation -XX:TieredStopAtLevel=1` | Stops JIT compilation at C1 to favor startup time and a smaller compiler footprint over peak throughput |
+| `-Xss512k` | Halves per-thread stack memory allocation from default 1024k |
+| `-XX:+ExitOnOutOfMemoryError` | Fails fast on OOM; recovery depends on the hosting platform's restart policy |
+
+### HTTP Asset Compression & Cache Control
+
+Configured in `src/main/resources/application.properties` for host resource optimization:
+- **GZIP Compression**: `server.compression.enabled=true`, min response size 1024 B across text/JSON/CSS/JS/SVG MIME types.
+- **Browser Cache Control**: `spring.web.resources.cache.cachecontrol.max-age=7d`, `must-revalidate=true` for 7-day browser caching of static UI assets.
+
 
 ## Health Check
 

@@ -175,7 +175,7 @@ public class ActivityController {
     }
 
     private static final Pattern TRKPT_PATTERN = Pattern.compile(
-        "<trkpt\\s+[^>]*lat=\"(-?[0-9.]+)\"[^>]*lon=\"(-?[0-9.]+)\"",
+        "<trkpt\\s+[^>]*(?:lat=[\"'](-?[0-9.]+)[\"'][^>]*lon=[\"'](-?[0-9.]+)[\"']|lon=[\"'](-?[0-9.]+)[\"'][^>]*lat=[\"'](-?[0-9.]+)[\"'])",
         Pattern.CASE_INSENSITIVE);
 
     // package-private for unit testing
@@ -186,8 +186,10 @@ public class ActivityController {
         boolean first = true;
         while (m.find()) {
             try {
-                double lat = Double.parseDouble(m.group(1));
-                double lon = Double.parseDouble(m.group(2));
+                String latStr = m.group(1) != null ? m.group(1) : m.group(4);
+                String lonStr = m.group(2) != null ? m.group(2) : m.group(3);
+                double lat = Double.parseDouble(latStr);
+                double lon = Double.parseDouble(lonStr);
                 if (first) { startLat = lat; startLon = lon; first = false; }
                 endLat = lat; endLon = lon;
             } catch (NumberFormatException ignored) {}

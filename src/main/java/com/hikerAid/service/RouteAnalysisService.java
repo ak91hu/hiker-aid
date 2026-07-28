@@ -288,6 +288,13 @@ public class RouteAnalysisService {
         int turnaroundTrackIdx = Math.min(turnaroundFullIdx / trackStep, maxTrackIdx);
         int pnrTrackIdx = Math.min(pnrFullIdx / trackStep, maxTrackIdx);
 
+        double[] forwardTotalMin = new double[n];
+        double[] reverseTotalMin = new double[n];
+        for (int i = 0; i < n; i++) {
+            forwardTotalMin[i] = forwardMin[i] + addRestDelta(forwardMin[i]);
+            reverseTotalMin[i] = reverseMin[i] + addRestDelta(reverseMin[i]);
+        }
+
         return new SafetyAnalysis(
             paceFactor,
             fitnessLabel,
@@ -303,8 +310,8 @@ public class RouteAnalysisService {
             pnrTrackIdx,
             sunsetMinutes,
             SAFETY_BUFFER_MINUTES,
-            downsampleMinutes(forwardMin, trackStep),
-            downsampleMinutes(reverseMin, trackStep)
+            downsampleMinutes(forwardTotalMin, trackStep),
+            downsampleMinutes(reverseTotalMin, trackStep)
         );
     }
 
@@ -319,14 +326,20 @@ public class RouteAnalysisService {
     }
 
     private int estimateSunsetMinutes(double latDeg, int dayOfYear) {
+        return estimateSunsetMinutes(latDeg, dayOfYear, true);
+    }
+
+    private int estimateSunsetMinutes(double latDeg, int dayOfYear, boolean observeDst) {
         double latRad = Math.toRadians(latDeg);
         double declRad = Math.toRadians(-23.45 * Math.cos(Math.toRadians(360.0 / 365.0 * (dayOfYear + 10))));
         double cosHA = -Math.tan(latRad) * Math.tan(declRad);
         cosHA = Math.max(-1, Math.min(1, cosHA));
         double hourAngle = Math.acos(cosHA);
         double sunsetHour = 12.0 + hourAngle * 12.0 / Math.PI;
-        if (latDeg > 0 && dayOfYear >= 80 && dayOfYear <= 300) sunsetHour += 1.0;
-        if (latDeg < 0 && (dayOfYear >= 274 || dayOfYear <= 90)) sunsetHour += 1.0;
+        if (observeDst) {
+            if (latDeg > 0 && dayOfYear >= 80 && dayOfYear <= 300) sunsetHour += 1.0;
+            if (latDeg < 0 && (dayOfYear >= 274 || dayOfYear <= 90)) sunsetHour += 1.0;
+        }
         return (int) Math.round(sunsetHour * 60);
     }
 
@@ -388,6 +401,11 @@ public class RouteAnalysisService {
                 if (accumUp > ELEVATION_DEADBAND_M) totalAscent += accumUp;
                 accumUp = 0;
                 accumDown += -diff;
+            } else {
+                if (accumUp > ELEVATION_DEADBAND_M) totalAscent += accumUp;
+                if (accumDown > ELEVATION_DEADBAND_M) totalDescent += accumDown;
+                accumUp = 0;
+                accumDown = 0;
             }
         }
         if (accumUp > ELEVATION_DEADBAND_M) totalAscent += accumUp;

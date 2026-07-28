@@ -25,7 +25,15 @@ public class RoutePlannerController {
         "walk", "walking"
     );
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public RoutePlannerController() {
+        this(new RestTemplate());
+    }
+
+    public RoutePlannerController(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     @PostMapping("/plan")
     public ResponseEntity<?> plan(@RequestBody Map<String, Object> body) {

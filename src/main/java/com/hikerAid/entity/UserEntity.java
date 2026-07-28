@@ -31,6 +31,7 @@ public class UserEntity {
     }
 
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public String getGoogleId() { return googleId; }
     public String getEmail() { return email; }
     public String getName() { return name; }

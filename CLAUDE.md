@@ -164,7 +164,7 @@ min(distKm*2, 40) + min(ascent/50, 40) + min(maxGrad/2.5, 20)
 ```
 Easy(<10), Moderate(10-24), Hard(25-44), Very Hard(45-64), Extreme(65+).
 
-### Gradient colours (keep in sync: map.js + elevation.js)
+### Gradient colors (keep in sync: map.js + elevation.js)
 ```
 <-15% #0077B6 | <-8% #00B4D8 | <-2% #90E0EF | <+2% #74C69D
 <+8% #B7E4C7 | <+15% #F9C74F | <+25% #F4A261 | >=25% #E76F51
@@ -224,7 +224,7 @@ No SMTP. The `spring-boot-starter-mail` dependency is NOT used. Mail autoconfigu
 - Elevation deadband (3m) in `computeElevationGainLoss`
 - Safety buffer 30 min before sunset (`SAFETY_BUFFER_MINUTES`)
 - PWA share target in `manifest.json`
-- Gradient colours must match in both `map.js` and `elevation.js`
+- Gradient colors must match in both `map.js` and `elevation.js`
 - Jackson 3 imports: `tools.jackson.databind` (not `com.fasterxml`)
 - `spring.autoconfigure.exclude=...MailSenderAutoConfiguration` - prevents startup failure (no SMTP configured)
 - Admin panel JS: use `\uXXXX` escape sequences for Unicode chars in `textContent` calls, not raw Unicode or HTML entities

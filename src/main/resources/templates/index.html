@@ -10,14 +10,14 @@
     <meta name="theme-color" content="#1a2f1a">
     <meta name="description" content="Advanced GPX analysis for serious hikers. Free, no account needed, works in any browser.">
 
-    <title>HikerAid — Advanced GPX Reader</title>
+    <title>HikerAid — GPX Route Safety Analysis</title>
 
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=24">
+    <link rel="stylesheet" href="/css/style.css?v=25">
     <script>
       // Apply theme before paint to avoid flash
       (function () {
@@ -48,7 +48,7 @@
             </div>
             <div class="up-actions">
                 <a id="admin-badge" href="/admin" class="up-admin-badge hidden">&#9881; Admin Panel</a>
-                <button id="btn-sync" class="sync-btn hidden" title="Sync pending activities">
+                <button id="btn-sync" class="sync-btn hidden" title="Sync pending activities" aria-label="Sync pending activities">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                         <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
                     </svg>
@@ -87,25 +87,26 @@
     </div>
 
     <div id="user-content" class="user-content hidden">
-        <div class="uc-tabs">
-            <button class="uc-tab active" data-uc="activities">My Activities</button>
-            <button class="uc-tab" data-uc="friends">Friends</button>
+        <div class="uc-tabs" role="tablist" aria-label="Account content">
+            <button class="uc-tab active" data-uc="activities" role="tab" aria-selected="true" aria-controls="uc-activities">My Activities</button>
+            <button class="uc-tab" data-uc="friends" role="tab" aria-selected="false" aria-controls="uc-friends">Friends</button>
         </div>
 
-        <div id="uc-activities" class="uc-panel active">
+        <div id="uc-activities" class="uc-panel active" role="tabpanel">
             <div id="activities-list" class="activities-list">
                 <p class="uc-empty">No activities yet. Upload or record a hike to get started.</p>
             </div>
         </div>
 
-        <div id="uc-friends" class="uc-panel">
+        <div id="uc-friends" class="uc-panel" role="tabpanel">
             <div class="friends-add-row">
-                <input type="email" id="friend-email-input" class="friend-email-input" placeholder="Friend's email address">
+                <label for="friend-email-input" class="visually-hidden">Friend's email address</label>
+                <input type="email" id="friend-email-input" class="friend-email-input" placeholder="Friend's email address" autocomplete="email">
                 <button id="btn-add-friend" class="friend-add-btn">Add</button>
             </div>
             <div id="friend-error" class="error-banner hidden" style="margin-bottom:8px"></div>
             <div id="friends-incoming" class="friends-incoming hidden">
-                <h3 class="friends-sub-title">Pending Requests</h3>
+                <h3 class="friends-sub-title">Pending requests</h3>
                 <div id="friends-incoming-list" class="friends-list"></div>
             </div>
             <div id="friends-list-container" class="friends-list-container">
@@ -189,23 +190,23 @@
     <div class="features-grid">
         <div class="feature-card">
             <span class="feature-icon">&#9888;&#65039;</span>
-            <h3>Safety Analysis</h3>
+            <h3>Safety analysis</h3>
             <p>Turnaround point, daylight margin, point of no return — plan to get home safe</p>
         </div>
         <div class="feature-card">
             <span class="feature-icon">&#127939;</span>
-            <h3>Your Pace, Your Time</h3>
+            <h3>Your pace, your time</h3>
             <p>Tobler's function adjusted to your fitness — not a generic estimate</p>
         </div>
         <div class="feature-card">
             <span class="feature-icon">&#127912;</span>
-            <h3>Gradient Colours</h3>
-            <p>Track coloured by steepness — instantly see where the climbs are</p>
+            <h3>Gradient colors</h3>
+            <p>Track colored by steepness — instantly see where the climbs are</p>
         </div>
         <div class="feature-card">
             <span class="feature-icon">&#128225;</span>
-            <h3>Works Offline</h3>
-            <p>Installs as a PWA — use the app without internet once loaded</p>
+            <h3>Works offline</h3>
+            <p>Core route analysis remains available offline; cache map tiles before leaving coverage</p>
         </div>
     </div>
 
@@ -232,7 +233,7 @@
 <div id="loading-screen" class="screen">
     <div class="loading-content">
         <div class="spinner"></div>
-        <p class="loading-title">Analysing your route</p>
+        <p class="loading-title">Analyzing your route</p>
         <p class="loading-sub">Calculating Tobler time, gradient profile & difficulty score…</p>
     </div>
 </div>
@@ -303,6 +304,9 @@
             <button id="btn-3d" class="header-btn three-d-btn" aria-label="Toggle 3D view" title="3D terrain view">
                 <span class="three-d-label">3D</span>
             </button>
+            <button id="btn-survival" class="header-btn survival-btn" aria-label="Survival toolkit" title="Survival and technical toolkit: AMS, hydration, SAR beacon, and terrain hazards">
+                <span class="survival-icon-btn">🛡️</span>
+            </button>
             <button id="btn-theme-viewer" class="header-btn" aria-label="Toggle theme" title="Toggle light/dark theme">
                 <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
                 <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -312,7 +316,23 @@
 
     <!-- Map -->
     <div id="map" aria-label="Route map"></div>
-    <div id="map3d" class="map3d hidden" aria-label="3D terrain view"></div>
+    <div id="map-3d-container" class="map-3d-container hidden">
+        <div id="map3d" class="map3d" aria-label="3D terrain view"></div>
+        <div id="avy-hazard-legend" class="avy-hazard-legend">
+            <div class="avy-legend-header">
+                <span class="avy-legend-title">3D Avalanche Hazard</span>
+                <label class="avy-toggle-switch" title="Toggle slope hazard shading">
+                    <input type="checkbox" id="avy-hazard-toggle" checked>
+                    <span class="avy-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="avy-legend-items">
+                <div class="avy-legend-row"><span class="swatch" style="background:#2EC4B6"></span><span>&lt; 15° Low Risk</span></div>
+                <div class="avy-legend-row"><span class="swatch" style="background:#FF9F1C"></span><span>15°–30° Moderate</span></div>
+                <div class="avy-legend-row"><span class="swatch" style="background:#E71D36"></span><span>&gt; 30° Avalanche-prone Slope</span></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Live tracking viewer overlay (public /live/{token} page) -->
     <div id="live-info" class="live-info hidden"></div>
@@ -392,7 +412,7 @@
             <span class="stat-value" id="stat-speed">—</span>
             <span class="stat-label">Avg Speed</span>
         </div>
-        <div class="stat-card" id="card-vam" title="Vertical Ascent Metres per hour">
+        <div class="stat-card" id="card-vam" title="Vertical Ascent Meters per hour">
             <span class="stat-value" id="stat-vam">—</span>
             <span class="stat-label">VAM</span>
         </div>
@@ -408,9 +428,17 @@
             <span class="stat-value" id="stat-comparison">—</span>
             <span class="stat-label">vs You</span>
         </div>
-<div class="stat-card difficulty-card" id="card-difficulty">
+        <div class="stat-card difficulty-card" id="card-difficulty">
             <span class="stat-value" id="stat-difficulty">—</span>
             <span class="stat-label">Difficulty</span>
+        </div>
+        <div class="stat-card survival-stat-card" id="card-ams" title="Acute Mountain Sickness (AMS) & Hypoxia Risk Index" role="button" tabindex="0">
+            <span class="stat-value" id="stat-ams">—</span>
+            <span class="stat-label">AMS Risk</span>
+        </div>
+        <div class="stat-card survival-stat-card" id="card-water" title="Wilderness Hydration Demand" role="button" tabindex="0">
+            <span class="stat-value" id="stat-water">—</span>
+            <span class="stat-label">Resupply</span>
         </div>
     </div>
 
@@ -503,8 +531,8 @@
     </div>
 
     <!-- Photo viewer modal -->
-    <div id="photo-modal" class="photo-modal hidden">
-        <div class="photo-modal-content">
+    <div id="photo-modal" class="photo-modal hidden" role="dialog" aria-modal="true" aria-label="Captured photo viewer">
+        <div class="photo-modal-content" tabindex="-1">
             <button id="photo-modal-close" class="photo-modal-close" aria-label="Close">&#10005;</button>
             <img id="photo-modal-img" alt="Captured photo">
             <div id="photo-modal-meta" class="photo-modal-meta"></div>
@@ -512,8 +540,8 @@
     </div>
 
     <!-- Recording complete dialog -->
-    <div id="rec-complete" class="rec-complete hidden">
-        <p class="rec-complete-title">Hike Recorded</p>
+    <div id="rec-complete" class="rec-complete hidden" role="dialog" aria-modal="true" aria-labelledby="rec-complete-title">
+        <p class="rec-complete-title" id="rec-complete-title">Hike Recorded</p>
         <p id="rec-complete-summary" class="rec-complete-summary"></p>
         <div class="rec-complete-actions">
             <button id="btn-rec-analyze" class="rec-action-btn primary">Analyze Route</button>
@@ -523,7 +551,7 @@
     </div>
 
     <!-- Emergency fallback modal -->
-    <div id="emergency-fallback" class="emergency-fallback hidden">
+    <div id="emergency-fallback" class="emergency-fallback hidden" role="dialog" aria-modal="true" aria-labelledby="ef-title" aria-describedby="ef-sub">
         <div class="ef-box">
             <h3 class="ef-title" id="ef-title">Send emergency via SMS</h3>
             <p class="ef-sub" id="ef-sub">Send your location via your phone's SMS app instead.</p>
@@ -547,9 +575,9 @@
     </button>
 
     <!-- Weather panel -->
-    <div id="weather-panel" class="weather-panel hidden">
+    <div id="weather-panel" class="weather-panel hidden" role="dialog" aria-modal="true" aria-labelledby="weather-panel-title">
         <div class="weather-panel-header">
-            <span class="weather-panel-title">Route Weather</span>
+            <span class="weather-panel-title" id="weather-panel-title">Route weather</span>
             <button id="btn-close-weather" class="close-btn" aria-label="Close weather panel">&#10005;</button>
         </div>
         <div id="weather-content" class="weather-content">
@@ -558,9 +586,9 @@
     </div>
 
     <!-- Splits panel -->
-    <div id="splits-panel" class="splits-panel hidden">
+    <div id="splits-panel" class="splits-panel hidden" role="dialog" aria-modal="true" aria-labelledby="splits-panel-title">
         <div class="splits-panel-header">
-            <span class="splits-panel-title">Per-km Splits</span>
+            <span class="splits-panel-title" id="splits-panel-title">Per-km splits</span>
             <button id="btn-close-splits" class="close-btn" aria-label="Close splits panel">&#10005;</button>
         </div>
         <div class="splits-summary" id="splits-summary"></div>
@@ -573,9 +601,9 @@
     </div>
 
     <!-- Multi-day plan panel -->
-    <div id="multiday-panel" class="splits-panel hidden">
+    <div id="multiday-panel" class="splits-panel hidden" role="dialog" aria-modal="true" aria-labelledby="multiday-panel-title">
         <div class="splits-panel-header">
-            <span class="splits-panel-title">Multi-day Plan</span>
+            <span class="splits-panel-title" id="multiday-panel-title">Multi-day plan</span>
             <button id="btn-close-multiday" class="close-btn" aria-label="Close multi-day panel">&#10005;</button>
         </div>
         <div class="multiday-controls">
@@ -592,9 +620,9 @@
     </div>
 
     <!-- AI Analysis panel -->
-    <div id="ai-panel" class="ai-panel hidden">
+    <div id="ai-panel" class="ai-panel hidden" role="dialog" aria-modal="true" aria-labelledby="ai-panel-title">
         <div class="ai-panel-header">
-            <span class="ai-panel-title">AI Performance Analysis</span>
+            <span class="ai-panel-title" id="ai-panel-title">AI performance analysis</span>
             <button id="btn-close-ai" class="close-btn" aria-label="Close AI panel">&#10005;</button>
         </div>
         <div id="ai-content" class="ai-content">
@@ -603,9 +631,9 @@
     </div>
 
     <!-- Layer switcher panel -->
-    <div id="layer-panel" class="layer-panel hidden" role="dialog" aria-label="Map layer selector">
+    <div id="layer-panel" class="layer-panel hidden" role="dialog" aria-modal="true" aria-label="Map layer selector">
         <div class="layer-panel-header">
-            <span>Map Layer</span>
+            <span>Map layer</span>
             <button id="btn-close-layers" class="close-btn" aria-label="Close layer panel">✕</button>
         </div>
         <div class="layer-options">
@@ -631,7 +659,7 @@
             </label>
         </div>
         <div class="offline-tiles-section">
-            <div class="offline-tiles-title">Offline Maps</div>
+            <div class="offline-tiles-title">Offline maps</div>
             <p class="offline-tiles-help">Download tiles around this route for use without internet.</p>
             <div class="offline-tiles-info" id="offline-tiles-info">No tiles cached.</div>
             <div class="offline-tiles-progress hidden" id="offline-tiles-progress">
@@ -645,14 +673,114 @@
             </div>
         </div>
     </div>
+
+    <!-- Survival and technical toolkit panel -->
+    <div id="survival-panel" class="survival-panel hidden" role="dialog" aria-modal="true" aria-labelledby="survival-title">
+        <div class="survival-panel-header">
+            <div class="survival-header-title">
+                <span class="survival-icon-top">🛡️</span>
+                <div>
+                    <h3 class="survival-title" id="survival-title">Survival and technical toolkit</h3>
+                    <p class="survival-subtitle">Wilderness hypoxia acclimatization, resupply demand, and SAR emergency beacon</p>
+                </div>
+            </div>
+            <button id="btn-close-survival" class="close-btn" aria-label="Close survival panel">✕</button>
+        </div>
+        <div class="survival-tabs" role="tablist" aria-label="Survival analysis tools">
+            <button class="survival-tab active" id="stab-btn-ams" data-tab="ams" role="tab" aria-selected="true" aria-controls="stab-ams">⛰️ AMS &amp; Acclimatization</button>
+            <button class="survival-tab" id="stab-btn-resupply" data-tab="resupply" role="tab" aria-selected="false" aria-controls="stab-resupply">💧 Hydration &amp; Nutrition</button>
+            <button class="survival-tab" id="stab-btn-terrain" data-tab="terrain" role="tab" aria-selected="false" aria-controls="stab-terrain">⚠️ Technical Terrain &amp; Avalanche</button>
+            <button class="survival-tab" id="stab-btn-sar" data-tab="sar" role="tab" aria-selected="false" aria-controls="stab-sar">🚨 SAR Emergency Beacon</button>
+        </div>
+        <div class="survival-content">
+            <!-- AMS Tab -->
+            <div id="stab-ams" class="survival-tab-pane active" role="tabpanel" aria-labelledby="stab-btn-ams">
+                <div class="survival-card">
+                    <div class="survival-card-head">
+                        <h4>Hypoxia and acute mountain sickness (AMS) risk analyzer</h4>
+                        <span id="ams-risk-badge" class="risk-badge badge-safe">LOW RISK</span>
+                    </div>
+                    <p class="survival-desc">Provides a planning estimate based on maximum elevation, altitude gain above 2,500 m, and estimated ascent rate. It is not a medical diagnosis.</p>
+                    <div class="survival-metrics-grid">
+                        <div class="s-metric"><span class="s-lbl">Max altitude</span><span class="s-val" id="ams-max-alt">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Gain above 2,500 m</span><span class="s-val" id="ams-high-gain">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Estimated summit SpO₂</span><span class="s-val" id="ams-spo2">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Ascent-rate stress</span><span class="s-val" id="ams-ascent-rate">—</span></div>
+                    </div>
+                    <div class="survival-advice-box" id="ams-advice">No high-altitude acclimatization protocol required for this elevation.</div>
+                </div>
+            </div>
+            <!-- Resupply Tab -->
+            <div id="stab-resupply" class="survival-tab-pane" role="tabpanel" aria-labelledby="stab-btn-resupply">
+                <div class="survival-card">
+                    <div class="survival-card-head">
+                        <h4>Dynamic wilderness hydration and electrolyte demand</h4>
+                    </div>
+                    <p class="survival-desc">Real-time resupply targets adjusted for pack weight load factor, elevation gain, Tobler duration, ambient temperature, and humidity.</p>
+                    <div class="resupply-controls">
+                        <label><span>Ambient temperature: <strong id="resupply-temp-val">20°C</strong></span><input type="range" id="resupply-temp" min="-10" max="45" value="20" step="1" aria-describedby="resupply-temp-val"></label>
+                        <label><span>Relative humidity: <strong id="resupply-hum-val">50%</strong></span><input type="range" id="resupply-hum" min="10" max="100" value="50" step="5" aria-describedby="resupply-hum-val"></label>
+                    </div>
+                    <div class="survival-metrics-grid">
+                        <div class="s-metric highlight-blue"><span class="s-lbl">Total water estimate</span><span class="s-val" id="res-water-total">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Hourly intake target</span><span class="s-val" id="res-water-hourly">—</span></div>
+                        <div class="s-metric highlight-orange"><span class="s-lbl">Calorie target</span><span class="s-val" id="res-kcal">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Electrolyte estimate</span><span class="s-val" id="res-electrolytes">—</span></div>
+                    </div>
+                    <div class="survival-advice-box">💡 Planning estimate only: adjust intake to exertion, weather, individual needs, and medical advice. Avoid both dehydration and excessive fluid intake.</div>
+                </div>
+            </div>
+            <!-- Terrain Tab -->
+            <div id="stab-terrain" class="survival-tab-pane" role="tabpanel" aria-labelledby="stab-btn-terrain">
+                <div class="survival-card">
+                    <div class="survival-card-head">
+                        <h4>Technical terrain and avalanche slope screening</h4>
+                    </div>
+                    <p class="survival-desc">Identifies route segments above selected slope thresholds. Slope alone cannot determine avalanche conditions or hiking grade; check local forecasts and terrain reports.</p>
+                    <div class="terrain-bar-container">
+                        <div class="terrain-bar-label">Slope-angle distribution across route distance</div>
+                        <div class="terrain-bar" id="terrain-dist-bar"></div>
+                        <div class="terrain-bar-legend" id="terrain-bar-legend"></div>
+                    </div>
+                    <div class="survival-metrics-grid" style="margin-top:16px;">
+                        <div class="s-metric"><span class="s-lbl">Slopes &gt; 30°</span><span class="s-val" id="ter-30">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Slopes &gt; 35°</span><span class="s-val" id="ter-35">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Maximum instantaneous slope</span><span class="s-val" id="ter-max-slope">—</span></div>
+                        <div class="s-metric"><span class="s-lbl">Slope screening band</span><span class="s-val" id="ter-grade">—</span></div>
+                    </div>
+                    <div class="survival-advice-box" id="ter-advice">Analyzing terrain slope angles...</div>
+                </div>
+            </div>
+            <!-- SAR Tab -->
+            <div id="stab-sar" class="survival-tab-pane" role="tabpanel" aria-labelledby="stab-btn-sar">
+                <div class="survival-card">
+                    <div class="survival-card-head">
+                        <h4>Offline search and rescue (SAR) payload and QR code</h4>
+                    </div>
+                    <p class="survival-desc">Generate a compact SOS payload to copy into a satellite messenger or SMS, or show as a QR code to a nearby rescue team.</p>
+                    <div class="sar-payload-box">
+                        <textarea id="sar-payload-text" readonly rows="3" aria-label="SAR payload text"></textarea>
+                        <button id="btn-sar-copy" class="sar-action-btn primary">📋 Copy payload for satellite or SMS</button>
+                    </div>
+                    <div class="sar-qr-section">
+                        <h5>High-contrast emergency QR payload</h5>
+                        <div class="sar-qr-wrap" id="sar-qr-wrap">
+                            <canvas id="sar-qr-canvas" width="200" height="200" role="img" aria-label="QR code containing the emergency payload"></canvas>
+                        </div>
+                        <p class="sar-qr-note">Show the code at a readable distance to a nearby rescuer. Do not rely on a screen-based QR code for aerial detection.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="print-card" class="print-card" aria-hidden="true"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-<script src="/js/map.js?v=24"></script>
-<script src="/js/elevation.js?v=24"></script>
-<script src="/js/app.js?v=24"></script>
+<script src="/js/map.js?v=25"></script>
+<script src="/js/elevation.js?v=25"></script>
+<script src="/js/app.js?v=25"></script>
 </body>
 </html>

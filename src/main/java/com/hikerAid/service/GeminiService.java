@@ -22,8 +22,17 @@ public class GeminiService {
     @Value("${hikerAid.gemini-api-key:}")
     private String apiKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+    public GeminiService() {
+        this(new RestTemplate(), new ObjectMapper());
+    }
+
+    public GeminiService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     public boolean isAvailable() {
         return apiKey != null && !apiKey.isBlank();

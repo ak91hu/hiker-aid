@@ -43,7 +43,7 @@ collaborating with the AI) can be productive quickly.
 ### Phased feature work
 Big features are split into named phases with shippable PR-sized chunks
 (P1.1, P1.2, ... P3.4). This makes it easy to interrupt, redirect, or
-parallelise. The first big batch (May 2026) used this structure for the
+parallelize. The first big batch (May 2026) used this structure for the
 ten features that became Phases 1-3 — see
 [agentic-history.md](agentic-history.md).
 

@@ -31,6 +31,7 @@ public class TrackingSessionEntity {
     public TrackingSessionEntity() {}
 
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public UserEntity getUser() { return user; }
     public String getToken() { return token; }
     public String getRouteName() { return routeName; }

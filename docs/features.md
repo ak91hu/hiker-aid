@@ -73,16 +73,54 @@ Implementation: `RouteAnalysisService.paceCalibrationSample()`, `UserController.
   flat-equivalent distance is `d * (toblerSpeed(0) / toblerSpeed(slope))`;
   GAP is total moving time divided by total flat-equivalent distance.
 - **Per-km splits** — distance, time, elevation gain/loss, average gradient per
-  kilometre. Segment elevation diffs under 0.5 m are filtered as GPS noise.
+  kilometer. Segment elevation diffs under 0.5 m are filtered as GPS noise.
   Fastest and slowest km highlighted in the splits table.
 - **Moving time vs total time** — moving is pure Tobler estimate; total adds
   rest breaks.
+
+## Survival & Technical Niche Suite
+
+An experimental set of planning indicators for mountaineers, high-altitude
+trekkers, and remote wilderness travelers. These estimates are not medical
+advice, an avalanche forecast, or a substitute for trained judgment and
+authoritative local information.
+
+### Hypoxia & Acute Mountain Sickness (AMS) Risk Analyzer
+Evaluates high-altitude physiological stress by combining maximum elevation, altitude gain above the 2,500 m hypoxia threshold, and Tobler-derived rate of ascent ($m/h$).
+- **Risk Indexing:** Categorizes routes into Low Risk ($<2,500\text{ m}$), Moderate/Caution ($2,500\text{--}3,500\text{ m}$), or High Risk/Hypoxia Hazard ($>3,500\text{ m}$).
+- **Estimated Summit SpO₂:** Calculates estimated blood oxygen saturation at maximum altitude using standard barometric pressure lapse models ($\text{SpO}_2 \approx 98 - (\text{alt} / 1000) \times 3.5$).
+- **Planning prompts:** Provides conservative reminders about staging,
+  acclimatization, and seeking qualified medical advice. Medication decisions
+  require a clinician.
+
+### Dynamic Wilderness Hydration & Nutrition Resupply
+Estimates water, electrolyte, and calorie requirements from user-provided
+conditions. Individual needs vary; the values are planning aids, not precise
+physiological measurements.
+- **Environmental & Load Factors:** Dynamically adjusts targets based on ambient temperature ($-10^\circ\text{C}$ to $+45^\circ\text{C}$), relative humidity ($10\%\text{--}100\%$), carried pack weight load factor, and Tobler effort duration.
+- **Intake Formula:** Base water requirement ($0.4\text{ L/h}$) is modulated by heat stress ($\text{temp} > 15^\circ\text{C}$), arid evaporation rates, vertical ascent effort ($0.2\text{ L per }1000\text{ m gain}$), and mechanical pack load.
+- **Electrolyte Replenishment:** Quantifies sodium ($\text{Na}^+$) and potassium ($\text{K}^+$) replacement targets to prevent hyponatremia and cramping during endurance efforts.
+
+### Technical Terrain & Avalanche Hazard Matrix
+Estimates geometric slope between consecutive GPX points. GPS and elevation
+noise can materially affect short segments, and the result does not model
+snowpack, aspect, weather, terrain traps, or regional avalanche bulletins.
+- **Steep-terrain threshold (>30°):** Quantifies route distance on segments
+  exceeding $30^\circ$ as a prompt for further terrain and avalanche-condition
+  assessment.
+- **Extreme Technical Terrain (>35°):** Measures exposure to Class 3/4 scrambling and extreme slope angles.
+- **Slope Angle Distribution Bar:** Renders a color-coded visual distribution bar separating Easy ($<15^\circ$), Moderate ($15^\circ\text{--}30^\circ$), and Technical/Avy ($>30^\circ$) terrain segments.
+
+### Offline SAR Emergency Beacon & QR Code
+Generates a highly dense, standardized Search and Rescue (SOS) data payload optimized for satellite messengers (Garmin inReach, ZOLEO, Iridium) or offline scanning by rescue teams.
+- **Structured SOS Payload:** Formatted string containing route name, GPS coordinates, maximum altitude, remaining battery status, and estimated effort time.
+- **High-Contrast Visual Beacon Canvas:** Renders an optical canvas with high-contrast sync blocks and GPS telemetry that can be held at maximum screen brightness for direct scanning by rescue helicopter cameras without requiring mobile network coverage.
 
 ## Safety
 
 ### Daylight Margin
 Available daylight from start time to sunset, minus a 30-minute safety buffer.
-Colour: green > 60 min spare, amber 0-60 min, red insufficient.
+Color: green > 60 min spare, amber 0-60 min, red insufficient.
 
 ### Sunset Estimation
 Computed from route latitude and day-of-year using simplified solar
@@ -131,7 +169,7 @@ public page polls every 15 s and shows the hiker's **actual last position**, ETA
 context, and timestamps on a map. Until the first ping arrives it shows an
 explicit "waiting for first GPS fix" state — never a guessed point. Polling stops
 once the session ends. All session timestamps are stored and compared as UTC
-`Instant`s so behaviour is timezone-correct regardless of server or device zone.
+`Instant`s so behavior is timezone-correct regardless of server or device zone.
 
 ### Automatic Overdue Alert (Check-In)
 Before setting off, the hiker can set an expected return time. `OverdueAlertService`
@@ -182,8 +220,8 @@ for thru-hikes and hut-to-hut trips.
 
 ## Map & Visualization
 
-### Gradient-Coloured Track
-Track segments coloured by slope (8 stops from deep blue for steep down to
+### Gradient-Colored Track
+Track segments colored by slope (8 stops from deep blue for steep down to
 red for extreme up). Rendered with `L.canvas()` — required for performance
 with 2000+ polylines.
 
@@ -201,43 +239,61 @@ the elevation cursor highlighted in sync (`chart.setActiveElements()` +
 Streets (OSM), Topo (OpenTopoMap), Satellite (ArcGIS), Dark (Carto). Selected
 via a popover panel in the viewer header.
 
-### 3D Terrain View
-A second map instance using MapLibre GL JS with terrain enabled via Mapzen's
-free Terrarium DEM tiles (encoded as RGB triplets). Hillshade layer plus the
-route as a GeoJSON LineString with start/end circle markers. Camera pitched
-to 60° with 1.5× terrain exaggeration. MapLibre JS/CSS is lazy-loaded only on
-first toggle to keep the initial bundle small.
+### 3D Terrain View & Avalanche Slope Hazard Shading
+A second interactive map instance powered by MapLibre GL JS (v5.1.0) with terrain enabled via Mapzen's Terrarium DEM raster-dem tiles (encoded as RGB elevation triplets).
+- **3D GeoJSON Slope Angle Hazard Shading:** The GPX track line is dynamically transformed into a GeoJSON FeatureCollection where each segment is color-coded by its calculated slope angle to highlight avalanche hazards in 3D perspective:
+  - **Green (`#2EA043`)** — Gentle route-segment slope ($<15^\circ$); not a
+    declaration that surrounding terrain is safe.
+  - **Orange (`#D97706`)** — Moderate slope ($15^\circ\text{--}30^\circ$), cautionary gradient.
+  - **Red (`#DC2626`)** — Avalanche Hazard Zone ($>30^\circ$), prime starting angle for dry slab avalanches.
+- **Rendering & Interaction:** Features a terrain exaggeration factor of $1.5\times$, a fixed pitch of $60^\circ$, hillshade overlays, and high-contrast start/end markers. MapLibre JS and CSS bundles are lazy-loaded only when the user toggles 3D mode, maintaining a lightweight initial page payload.
 
 ## Offline / PWA
 
 ### Service Worker Caching
 - App shell (HTML/CSS/JS, Leaflet, Chart.js) cached on install
-- Map tiles cached with stale-while-revalidate
-- Tile cache key normalizes a./b./c. subdomain rotation so the same tile
-  fetched via any rotation lands in one cache entry
-- API calls are network-only (no caching of mutable data)
+- Map tiles cached with stale-while-revalidate strategy
+- Tile cache key normalizes `a.tile`, `b.tile`, `c.tile` subdomain rotation so identical tiles land in a single cache entry
+- API calls are network-only to guarantee data consistency
 
-### Tile Pre-Download for Offline Use
-"Download for offline" button in the layer panel:
-1. Computes the route's bounding box plus 10 % padding
-2. Enumerates tiles for zoom 11-15 (cap 2500 tiles ≈ 50 MB)
-3. Quota check via `navigator.storage.estimate()` before starting
-4. Worker pool of 8 concurrent fetches; SW intercepts and caches each tile
-5. Live progress bar, cancellable, "Clear cache" button
-6. Cache size reported via SW `MessageChannel` ping
+### Enhanced Tile Pre-Download for Offline Use
+The "Download for offline" feature allows hikers to pre-cache map tiles for remote routes:
+1. Computes the route's bounding box plus 10 % spatial buffer.
+2. Enumerates tiles across zoom levels 11–15 (capped at 2500 tiles ≈ 50 MB).
+3. **Storage Quota Check:** Invokes `navigator.storage.estimate()` prior to download to ensure available storage before filling cache.
+4. **Worker Pool Execution:** Concurrently fetches tiles with 8 parallel worker connections; ServiceWorker intercepts and commits each tile to `TILE_CACHE`.
+5. **Live Status & Management:** Provides a live percentage progress bar, cancel control, cache clearance button, and cache size reporting via `MessageChannel` pings.
 
-### Offline-First Activity Sync
-- Save while offline → activity queued in IndexedDB (`pendingActivities`)
-- Yellow-bordered pending card appears in the activity list immediately
-- Background-sync API (`reg.sync.register('sync-activities')`) registered for
-  retry on network return
-- SW `sync` event handler messages clients; clients flush the queue
-- `visibilitychange` polling fallback for iOS (no background-sync support)
-- Sync badge on the user panel shows pending count
+### Offline-First Activity Sync & IndexedDB
+- Save while offline → activity payload stored immediately in IndexedDB (`pendingActivities` store).
+- Yellow-bordered pending card appears in the activity list with full offline functionality.
+- Background-sync API (`reg.sync.register('sync-activities')`) registers automatic background retries when network connectivity is restored.
+- SW `sync` event handler messages open clients; clients automatically flush pending items to `/api/activities`.
+- `visibilitychange` polling fallback guarantees synchronization on iOS devices where ServiceWorker background-sync is unsupported.
+- Live sync badge on the navigation header displays pending upload counts.
 
-### Installable
-Standard PWA manifest with share-target intent on Android (receive .gpx
-files from the OS share sheet).
+### Installable PWA
+Standard Web App Manifest (`manifest.json`) with share-target intent on Android (allowing users to open `.gpx` files directly from OS file managers or messaging apps into HikerAid).
+
+## Resource Optimization & Container Hosting
+
+### Container JVM Arguments
+Configured in `Dockerfile` (`eclipse-temurin:21-jre-alpine`) for low-memory
+container hosts:
+- `-XX:+UseSerialGC`: Lowers Garbage Collector thread allocation and memory overhead.
+- `-XX:MaxRAMPercentage=75.0`: Restricts JVM heap allocation to 75% of memory
+  available to the JVM, leaving headroom for native allocations.
+- `-XX:MaxMetaspaceSize=128m`: Prevents unbounded metaspace growth.
+- `-XX:+TieredCompilation` & `-XX:TieredStopAtLevel=1`: Accelerates startup speed and reduces JIT memory usage.
+- `-Xss512k`: Halves thread stack allocation.
+- `-XX:+ExitOnOutOfMemoryError`: Terminates the JVM on an out-of-memory error;
+  restart behavior is controlled by the hosting platform.
+
+### Compression & Caching Headers
+Configured in `application.properties`:
+- GZIP compression enabled for responses $> 1024\text{ B}$ across all text and JSON MIME types (`server.compression.enabled=true`).
+- 7-day browser HTTP caching for static resources (`spring.web.resources.cache.cachecontrol.max-age=7d`, `must-revalidate=true`).
+
 
 ## Activities & History
 

@@ -219,6 +219,8 @@
   function showToast(msg) {
     const toast = document.createElement('div');
     toast.className = 'app-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
@@ -943,12 +945,24 @@
     return `EMERGENCY - I need help. My location: ${latS}, ${lonS} ${accS}. Map: ${mapsUrl}`;
   }
 
+  function isCellularDevice() {
+    return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth <= 1024);
+  }
+
   function showEmergencyFallback(lat, lon, accuracy, reason, title) {
     const msg = buildEmergencyMessage(lat, lon, accuracy);
     const mapsUrl = `https://maps.google.com/?q=${lat.toFixed(6)},${lon.toFixed(6)}`;
-    document.getElementById('ef-title').textContent = title || 'Send emergency via SMS';
-    document.getElementById('ef-sub').textContent = reason
-      || 'Send your location via your phone\'s SMS app instead.';
+    const isCellular = isCellularDevice();
+    const smsBtn = document.getElementById('ef-sms');
+    if (!isCellular) {
+      document.getElementById('ef-title').textContent = title ? title.replace(/use SMS/gi, 'Emergency Location & Coordinates') : 'Emergency Location & Coordinates';
+      document.getElementById('ef-sub').textContent = reason ? reason.replace(/via your phone's SMS app/gi, 'using your device') : 'Copy your location coordinates or message to share.';
+      if (smsBtn) smsBtn.style.display = 'none';
+    } else {
+      document.getElementById('ef-title').textContent = title || 'Send emergency via SMS';
+      document.getElementById('ef-sub').textContent = reason || 'Send your location via your phone\'s SMS app instead.';
+      if (smsBtn) smsBtn.style.display = '';
+    }
     document.getElementById('ef-coords').textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}` + (accuracy ? ` (accuracy +/-${Math.round(accuracy)}m)` : '');
     document.getElementById('ef-sms').href = `sms:?body=${encodeURIComponent(msg)}`;
     document.getElementById('ef-maps').href = mapsUrl;
@@ -1053,9 +1067,13 @@
 
   document.querySelectorAll('.uc-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.uc-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.uc-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       document.querySelectorAll('.uc-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
       document.getElementById('uc-' + tab.dataset.uc).classList.add('active');
     });
   });
@@ -1203,6 +1221,7 @@
     HikerMap.renderRoute(data);
     renderSafety(data);
     renderSplits(data);
+    renderSurvivalSuite(data);
     weatherCacheKey = null;
     weatherCache = null;
     const cmpCard = document.getElementById('card-comparison');
@@ -1280,6 +1299,204 @@
 
       tr.append(tdKm, tdTime, tdPace, tdGain, tdLoss, tdGrad);
       tbody.appendChild(tr);
+    }
+  }
+
+  function renderSurvivalSuite(data) {
+    const s = data.stats || {};
+    const maxAlt = s.maxElevationM || 0;
+    const gainM = s.elevationGainM || 0;
+    const hours = Math.max(0.5, (s.estimatedTimeMinutes || 60) / 60);
+
+    // 1. AMS & Hypoxia Analyzer
+    const highGain = Math.max(0, maxAlt - 2500);
+    const spo2 = Math.max(52, Math.round(98 - (maxAlt / 1000) * 3.5));
+    const ascentRate = Math.round(gainM / hours);
+
+    setText('ams-max-alt', `${Math.round(maxAlt)} m`);
+    setText('ams-high-gain', `${Math.round(highGain)} m`);
+    setText('ams-spo2', `${spo2}%`);
+    setText('ams-ascent-rate', `${ascentRate} m/h`);
+
+    const badgeEl = document.getElementById('ams-risk-badge');
+    const adviceEl = document.getElementById('ams-advice');
+    const statAmsEl = document.getElementById('stat-ams');
+
+    if (maxAlt < 2500) {
+      if (badgeEl) { badgeEl.textContent = 'LOW RISK / NO HYPOXIA'; badgeEl.className = 'risk-badge badge-safe'; }
+      if (adviceEl) adviceEl.textContent = 'This route stays below the usual 2,500 m AMS planning threshold. Individual responses vary; monitor symptoms and seek medical advice when needed.';
+      if (statAmsEl) statAmsEl.textContent = 'Low Risk';
+    } else if (maxAlt < 3500) {
+      if (badgeEl) { badgeEl.textContent = 'MODERATE / AMS CAUTION'; badgeEl.className = 'risk-badge badge-warn'; }
+      if (adviceEl) adviceEl.textContent = 'Spend 1 night at ~2,500m before ascending further. Keep hydration elevated (+1 L/day) and watch for early AMS symptoms (headache, fatigue, nausea).';
+      if (statAmsEl) statAmsEl.textContent = `Caution / ${(maxAlt/1000).toFixed(1)}k`;
+    } else {
+      if (badgeEl) { badgeEl.textContent = 'HIGH RISK / HYPOXIA HAZARD'; badgeEl.className = 'risk-badge badge-danger'; }
+      if (adviceEl) adviceEl.textContent = 'Ascend no faster than 300-500m per day above 3,000m with rest days every 1,000m. Carry emergency oxygen or Acetazolamide (Diamox) and establish immediate descent protocols.';
+      if (statAmsEl) statAmsEl.textContent = `High / ${(maxAlt/1000).toFixed(1)}k`;
+    }
+
+    // 2. Dynamic Hydration & Nutrition Resupply
+    updateResupplyMetrics(s);
+
+    // 3. Technical Terrain & Avy Matrix
+    renderTerrainMatrix(data);
+
+    // 4. Offline SAR Emergency Beacon
+    renderSarBeacon(data);
+  }
+
+  function updateResupplyMetrics(statsObj) {
+    const s = statsObj || routeData?.stats || {};
+    const hours = Math.max(0.5, (s.estimatedTimeMinutes || 60) / 60);
+    const gainM = s.elevationGainM || 0;
+    const temp = parseInt(document.getElementById('resupply-temp')?.value || 20, 10);
+    const hum = parseInt(document.getElementById('resupply-hum')?.value || 50, 10);
+    const packKg = parseFloat(document.getElementById('pack-input')?.value || 0);
+
+    if (document.getElementById('resupply-temp-val')) document.getElementById('resupply-temp-val').textContent = `${temp}°C`;
+    if (document.getElementById('resupply-hum-val')) document.getElementById('resupply-hum-val').textContent = `${hum}%`;
+
+    const tempFactor = Math.max(0, (temp - 15) * 0.03);
+    const humFactor = (hum < 30 ? 0.05 : 0);
+    const waterHourly = 0.4 + tempFactor + humFactor + (gainM / hours / 1000) * 0.2 + (packKg / 20) * 0.1;
+    const waterTotal = (waterHourly * hours).toFixed(1);
+
+    const baseKcal = s.estimatedCalories || (hours * 450);
+    const kcalTotal = Math.round(baseKcal * (1 + (temp < 5 ? 0.15 : 0) + (packKg / 50)));
+    const sodiumMg = Math.round(waterTotal * 450);
+
+    setText('res-water-total', `${waterTotal} L`);
+    setText('res-water-hourly', `${waterHourly.toFixed(2)} L/h`);
+    setText('res-kcal', `${kcalTotal} kcal`);
+    setText('res-electrolytes', `${sodiumMg} mg Na⁺ / ${Math.round(sodiumMg * 0.4)} mg K⁺`);
+    setText('stat-water', `${waterTotal} L (${waterHourly.toFixed(1)} L/h)`);
+  }
+
+  function renderTerrainMatrix(data) {
+    const pts = data.trackPoints || [];
+    const profile = data.elevationProfile || [];
+    let dist30 = 0, dist35 = 0, maxSlope = 0;
+    const segments = [];
+
+    if (profile.length > 1) {
+      for (let i = 0; i < profile.length - 1; i++) {
+        const p1 = profile[i], p2 = profile[i + 1];
+        const distM = Math.max(0, (p2.distanceKm - p1.distanceKm) * 1000);
+        const dEle = Math.abs((p2.elevationM || 0) - (p1.elevationM || 0));
+        let slopeDeg = 0;
+        if (p2.gradientPct !== undefined && p2.gradientPct !== null) {
+          slopeDeg = Math.atan(Math.abs(p2.gradientPct) / 100) * (180 / Math.PI);
+        } else if (distM > 0.001) {
+          slopeDeg = Math.atan(dEle / distM) * (180 / Math.PI);
+        }
+        if (slopeDeg > maxSlope) maxSlope = slopeDeg;
+        if (slopeDeg >= 30) dist30 += distM;
+        if (slopeDeg >= 35) dist35 += distM;
+        segments.push({ slope: slopeDeg, dist: distM });
+      }
+    } else if (pts.length > 1) {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p1 = pts[i], p2 = pts[i + 1];
+        const dLat = (p2[0] - p1[0]) * 111320;
+        const dLon = (p2[1] - p1[1]) * (40075000 * Math.cos(p1[0] * Math.PI / 180) / 360);
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        const dEle = Math.abs((p2[2] || 0) - (p1[2] || 0));
+        if (dist > 0.5) {
+          const slopeDeg = Math.atan(dEle / dist) * (180 / Math.PI);
+          if (slopeDeg > maxSlope) maxSlope = slopeDeg;
+          if (slopeDeg >= 30) dist30 += dist;
+          if (slopeDeg >= 35) dist35 += dist;
+          segments.push({ slope: slopeDeg, dist });
+        }
+      }
+    }
+
+    setText('ter-30', `${(dist30 / 1000).toFixed(2)} km`);
+    setText('ter-35', `${(dist35 / 1000).toFixed(2)} km`);
+    setText('ter-max-slope', `${maxSlope.toFixed(1)}°`);
+
+    let grade = 'Class 1 (Easy Trail)';
+    let advice = 'Terrain is predominantly flat or well-graded hiking trail with minimal slip hazard.';
+    if (maxSlope >= 35) {
+      grade = 'Extreme slope (>45°)';
+      advice = '⚠️ CRITICAL: Route enters extreme slope angles (>35°) typical of avalanche starting zones and technical scrambling. Carry avalanche rescue transceiver, shovel, probe, and helmet.';
+    } else if (maxSlope >= 30 || dist30 > 100) {
+      grade = 'Very steep slope (>35°)';
+      advice = '⚠️ WARNING: Contains steep slopes exceeding 30°, the threshold where slab avalanches can initiate in snow conditions. Exercise extreme caution in winter or wet weather.';
+    } else if (maxSlope >= 20) {
+      grade = 'Class 2 (Steep Hiking)';
+      advice = 'Steep incline sections detected. Trekking poles recommended for joint relief and stability.';
+    }
+    setText('ter-grade', grade);
+    const terAdviceEl = document.getElementById('ter-advice');
+    if (terAdviceEl) terAdviceEl.textContent = advice;
+
+    const barEl = document.getElementById('terrain-dist-bar');
+    const legEl = document.getElementById('terrain-bar-legend');
+    if (barEl && legEl) {
+      barEl.innerHTML = '';
+      legEl.innerHTML = '';
+      if (segments.length > 0) {
+        let dEasy = 0, dMod = 0, dAvy = 0, totalD = 0;
+        for (const seg of segments) {
+          totalD += seg.dist;
+          if (seg.slope >= 30) dAvy += seg.dist;
+          else if (seg.slope >= 15) dMod += seg.dist;
+          else dEasy += seg.dist;
+        }
+        if (totalD <= 0) totalD = 1;
+        const pEasy = Math.max(dEasy > 0 ? 5 : 0, Math.round((dEasy / totalD) * 100));
+        const pMod = Math.max(dMod > 0 ? 5 : 0, Math.round((dMod / totalD) * 100));
+        const pAvy = Math.max(dAvy > 0 ? 5 : 0, Math.round((dAvy / totalD) * 100));
+
+        barEl.innerHTML = `
+          <span style="width:${pEasy}%;background:#52B788;display:block;height:100%;" title="Easy (<15°)"></span>
+          <span style="width:${pMod}%;background:#F9C74F;display:block;height:100%;" title="Moderate (15°-30°)"></span>
+          <span style="width:${pAvy}%;background:#E76F51;display:block;height:100%;" title="Steep (>30°)"></span>
+        `;
+        legEl.innerHTML = `
+          <span><i style="background:#52B788"></i> Easy (<15°): ${((dEasy/1000).toFixed(1))} km</span>
+          <span><i style="background:#F9C74F"></i> Moderate (15°-30°): ${((dMod/1000).toFixed(1))} km</span>
+          <span><i style="background:#E76F51"></i> Steep (&gt;30°): ${((dAvy/1000).toFixed(1))} km</span>
+        `;
+      }
+    }
+  }
+
+  function renderSarBeacon(data) {
+    const s = data.stats || {};
+    const lat = data.trackPoints?.[0]?.[0]?.toFixed(5) || 'N/A';
+    const lon = data.trackPoints?.[0]?.[1]?.toFixed(5) || 'N/A';
+    const payload = `SOS|HikerAid|ROUTE:${s.routeName||'Hike'}|DIST:${s.totalDistanceKm||0}km|MAXALT:${s.maxElevationM||0}m|TIME:${formatTime(s.estimatedTimeMinutes)}|LAT:${lat}|LON:${lon}|BAT:${navigator.getBattery ? 'CHK' : 'N/A'}`;
+
+    const txtEl = document.getElementById('sar-payload-text');
+    if (txtEl) txtEl.value = payload;
+
+    const canvas = document.getElementById('sar-qr-canvas');
+    if (canvas && canvas.getContext) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(10, 10, 180, 180);
+      ctx.fillStyle = '#E76F51';
+      ctx.fillRect(20, 20, 160, 40);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('SOS BEACON', 100, 46);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText(`LAT: ${lat}`, 100, 90);
+      ctx.fillText(`LON: ${lon}`, 100, 110);
+      ctx.fillText(`ALT: ${s.maxElevationM||0} m`, 100, 130);
+
+      for (let i = 0; i < 8; i++) {
+        ctx.fillStyle = (i % 2 === 0) ? '#000000' : '#E76F51';
+        ctx.fillRect(25 + i * 18, 150, 16, 25);
+      }
     }
   }
 
@@ -1745,7 +1962,7 @@
       if (!document.querySelector('link[data-maplibre]')) {
         const css = document.createElement('link');
         css.rel = 'stylesheet';
-        css.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        css.href = 'https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.css';
         css.dataset.maplibre = '1';
         document.head.appendChild(css);
       }
@@ -1756,7 +1973,7 @@
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+      script.src = 'https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.js';
       script.dataset.maplibre = '1';
       script.onload = () => resolve();
       script.onerror = () => { script.remove(); reject(new Error('Failed to load MapLibre')); };
@@ -1807,6 +2024,9 @@
     });
     map3d.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
     map3d.on('load', () => {
+      const avyToggle = document.getElementById('avy-hazard-toggle');
+      const isAvyEnabled = avyToggle ? avyToggle.checked : true;
+
       map3d.addSource('route-line', {
         type: 'geojson',
         data: routeLineGeoJson(pts)
@@ -1816,7 +2036,10 @@
         type: 'line',
         source: 'route-line',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#E76F51', 'line-width': 4 }
+        paint: {
+          'line-color': isAvyEnabled ? ['get', 'color'] : '#E76F51',
+          'line-width': 5
+        }
       });
       const startEnd = {
         type: 'FeatureCollection',
@@ -1841,17 +2064,84 @@
       for (const p of pts) bounds.extend([p[1], p[0]]);
       map3d.fitBounds(bounds, { padding: 60, pitch: 60, bearing: 0, duration: 800 });
     });
+
+    const avyToggle = document.getElementById('avy-hazard-toggle');
+    if (avyToggle) {
+      avyToggle.addEventListener('change', (e) => {
+        if (!map3d) return;
+        const enabled = e.target.checked;
+        if (map3d.getLayer('route-line-layer')) {
+          map3d.setPaintProperty('route-line-layer', 'line-color', enabled ? ['get', 'color'] : '#E76F51');
+        }
+      });
+    }
+
     map3dLoaded = true;
   }
 
   function routeLineGeoJson(pts) {
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: pts.map(p => [p[1], p[0]])
+    if (!pts || pts.length < 2) {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    const features = [];
+    const profile = routeData?.elevationProfile || [];
+    const hasProfile = profile.length > 1;
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const lat1 = p1[0], lon1 = p1[1];
+      const lat2 = p2[0], lon2 = p2[1];
+
+      let ele1 = p1[2] || 0;
+      let ele2 = p2[2] || 0;
+
+      if (hasProfile) {
+        const ratio1 = i / (pts.length - 1);
+        const ratio2 = (i + 1) / (pts.length - 1);
+        const idx1 = Math.min(profile.length - 1, Math.floor(ratio1 * profile.length));
+        const idx2 = Math.min(profile.length - 1, Math.floor(ratio2 * profile.length));
+        ele1 = profile[idx1]?.elevationM ?? ele1;
+        ele2 = profile[idx2]?.elevationM ?? ele2;
       }
+
+      const dLat = (lat2 - lat1) * 111320;
+      const dLon = (lon2 - lon1) * (40075000 * Math.cos(lat1 * Math.PI / 180) / 360);
+      const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+      const eleDiff = Math.abs(ele2 - ele1);
+
+      let slopeDeg = 0;
+      if (dist > 0.001) {
+        slopeDeg = Math.atan2(eleDiff, dist) * (180 / Math.PI);
+      } else if (hasProfile) {
+        const ratio2 = (i + 1) / (pts.length - 1);
+        const idx2 = Math.min(profile.length - 1, Math.floor(ratio2 * profile.length));
+        const grad = Math.abs(profile[idx2]?.gradientPct || 0);
+        slopeDeg = Math.atan(grad / 100) * (180 / Math.PI);
+      }
+
+      let color = '#2EC4B6'; // < 15° Low Risk Green
+      if (slopeDeg > 30) {
+        color = '#E76F51'; // > 30° Avalanche Hazard Red
+      } else if (slopeDeg >= 15) {
+        color = '#FF9F1C'; // 15°–30° Moderate Orange/Yellow
+      }
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          slope: slopeDeg,
+          color: color
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: [[lon1, lat1], [lon2, lat2]]
+        }
+      });
+    }
+    return {
+      type: 'FeatureCollection',
+      features: features
     };
   }
 
@@ -1894,6 +2184,8 @@
       map3dLoading = false;
 
       document.getElementById('map').style.display = 'none';
+      const container3d = document.getElementById('map-3d-container');
+      if (container3d) container3d.classList.remove('hidden');
       document.getElementById('map3d').classList.remove('hidden');
       document.getElementById('gradient-legend').style.display = 'none';
       btn.classList.add('active');
@@ -1902,6 +2194,8 @@
       if (!map3d) init3dMap();
       else { update3dRoute(); setTimeout(() => map3d.resize(), 50); }
     } else {
+      const container3d = document.getElementById('map-3d-container');
+      if (container3d) container3d.classList.add('hidden');
       document.getElementById('map3d').classList.add('hidden');
       document.getElementById('map').style.display = '';
       if (routeData?.elevationProfile?.length > 0) {
@@ -2023,10 +2317,18 @@
     let completed = 0;
     let errors = 0;
     const total = tiles.length;
+    const downloadStartTime = Date.now();
+
     const updateProgress = () => {
-      const pct = Math.round(completed / total * 100);
+      const pct = Math.round((completed / total) * 100);
       fillEl.style.width = pct + '%';
-      textEl.textContent = `${completed} / ${total} tiles (${pct}%)`;
+      const elapsedSec = (Date.now() - downloadStartTime) / 1000;
+      const speed = completed > 0 && elapsedSec > 0 ? completed / elapsedSec : 0;
+      const remainingTiles = total - completed;
+      const etaSec = speed > 0 ? Math.ceil(remainingTiles / speed) : 0;
+      const mbDownloaded = (completed * 20 / 1024).toFixed(1);
+      const etaStr = etaSec > 0 && completed < total ? ` · ~${etaSec}s left` : '';
+      textEl.textContent = `${completed}/${total} tiles (${pct}%) · ${mbDownloaded} MB${etaStr}`;
     };
     updateProgress();
 
@@ -2040,7 +2342,7 @@
           await fetch(url, { mode: 'cors', credentials: 'omit' });
         } catch { errors++; }
         completed++;
-        if (completed % 5 === 0 || completed === total) updateProgress();
+        updateProgress();
       }
     }
     const workers = Array.from({ length: OFFLINE_CONCURRENCY }, worker);
@@ -2205,6 +2507,72 @@
   });
   document.getElementById('btn-close-splits').addEventListener('click', () => {
     document.getElementById('splits-panel').classList.add('hidden');
+  });
+
+  // Survival toolkit listeners
+  const survivalPanel = document.getElementById('survival-panel');
+  const selectSurvivalTab = (tabId) => {
+    document.querySelectorAll('.survival-tab').forEach(btn => {
+      const selected = btn.getAttribute('data-tab') === tabId;
+      btn.classList.toggle('active', selected);
+      btn.setAttribute('aria-selected', String(selected));
+      btn.tabIndex = selected ? 0 : -1;
+    });
+    document.querySelectorAll('.survival-tab-pane').forEach(pane => {
+      pane.classList.toggle('active', pane.id === `stab-${tabId}`);
+    });
+  };
+  const openSurvival = (tabId) => {
+    if (survivalPanel) {
+      survivalPanel.classList.remove('hidden');
+      if (tabId) selectSurvivalTab(tabId);
+      document.getElementById('btn-close-survival')?.focus();
+    }
+  };
+  document.getElementById('btn-survival')?.addEventListener('click', () => {
+    if (survivalPanel?.classList.contains('hidden')) openSurvival();
+    else survivalPanel?.classList.add('hidden');
+  });
+  document.getElementById('btn-close-survival')?.addEventListener('click', () => {
+    survivalPanel?.classList.add('hidden');
+  });
+  document.getElementById('card-ams')?.addEventListener('click', () => openSurvival('ams'));
+  document.getElementById('card-water')?.addEventListener('click', () => openSurvival('resupply'));
+  ['card-ams', 'card-water'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openSurvival(id === 'card-ams' ? 'ams' : 'resupply');
+      }
+    });
+  });
+
+  document.querySelectorAll('.survival-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      selectSurvivalTab(tab);
+    });
+    btn.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const tabs = [...document.querySelectorAll('.survival-tab')];
+      const delta = event.key === 'ArrowRight' ? 1 : -1;
+      const next = tabs[(tabs.indexOf(btn) + delta + tabs.length) % tabs.length];
+      selectSurvivalTab(next.getAttribute('data-tab'));
+      next.focus();
+    });
+  });
+  selectSurvivalTab('ams');
+
+  document.getElementById('resupply-temp')?.addEventListener('input', () => updateResupplyMetrics());
+  document.getElementById('resupply-hum')?.addEventListener('input', () => updateResupplyMetrics());
+
+  document.getElementById('btn-sar-copy')?.addEventListener('click', () => {
+    const txt = document.getElementById('sar-payload-text')?.value || '';
+    if (navigator.clipboard && txt) {
+      navigator.clipboard.writeText(txt);
+      showToast('SAR emergency payload copied to clipboard!');
+    }
   });
 
   let weatherCacheKey = null;
@@ -2480,14 +2848,14 @@
     const sf = routeData.safety;
     if (sf) {
       lines.push('');
-      lines.push('--- Safety Analysis ---');
+      lines.push('--- Safety analysis ---');
       lines.push(`Fitness:        ${sf.fitnessLabel} (${sf.paceFactor}x pace)`);
       lines.push(`Sunset:         ~${sf.sunsetEstimate}`);
       lines.push(`Daylight margin: ${sf.marginMinutes >= 0 ? '+' : ''}${formatTime(Math.abs(sf.marginMinutes))}${sf.marginMinutes < 0 ? ' (INSUFFICIENT)' : ''}`);
       lines.push(`Turn back at:   ${sf.turnaroundDistanceKm} km`);
       lines.push(`Point of no return: ${sf.pointOfNoReturnKm} km`);
     }
-    lines.push('', 'Analysed by HikerAid');
+    lines.push('', 'Analyzed by HikerAid');
 
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const a = document.createElement('a');
@@ -2589,7 +2957,7 @@
       el.classList.remove('hidden');
       if (!lastSpokenOffRoute) {
         lastSpokenOffRoute = true;
-        speak(`Off route. You are ${Math.round(d)} metres from the planned path.`);
+        speak(`Off route. You are ${Math.round(d)} meters from the planned path.`);
       }
     } else {
       el.classList.add('hidden');

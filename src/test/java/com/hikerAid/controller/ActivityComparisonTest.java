@@ -57,9 +57,13 @@ class ActivityComparisonTest {
             </trkseg></trk></gpx>
             """;
         double[] e = controller.extractEndpoints(gpx);
-        // Pattern requires lat first then lon; reversed-attribute GPX is rare but real
-        // and currently not extracted. This test pins the documented behaviour.
-        assertNull(e, "Lon-before-lat attribute order is not supported");
+        // Pattern supports lat and lon in any attribute order (lat-first or lon-first).
+        // This test pins the documented behavior.
+        assertNotNull(e, "Lon-before-lat attribute order should be supported");
+        assertEquals(47.5, e[0], 0.0001);
+        assertEquals(19.0, e[1], 0.0001);
+        assertEquals(47.6, e[2], 0.0001);
+        assertEquals(19.1, e[3], 0.0001);
     }
 
     @Test

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "HikerAid", "hikeraid", "Tobler", "TOBLER", "MapLibre", "maplibre", "maplibregl",
+    "inReach", "ZOLEO", "VAM", "GAP", "spo2", "MAXALT", "multiday", "Multiday",
+    "Haversine", "BRouter", "BROUTER", "OpenMeteo", "Meteo", "Mapzen", "Terrarium",
+    "Chartjs", "Leaflet", "deadband", "DEADBAND", "accum", "Segs", "hypoxia",
+    "hyponatremia", "Acetazolamide", "Diamox", "IndexedDB", "Resend", "Thymeleaf",
+    "LiveTrack", "trkpt", "TRKPT", "trkseg", "rtept", "gpxtpx", "gpxdata",
+    "latlng", "latlngs", "Lngs", "maxzoom", "hillshade", "checkin", "Checkin",
+    "offroute", "turnback", "planmode", "sgrid", "hulo", "lonlats", "dlat", "dlon",
+    "Hikari", "creds", "onrender", "alternativeidx", "CARTO", "Trailhead",
+    "precip", "Precip", "temurin", "Metaspace", "metaspace", "cachecontrol",
+    "OAuth", "Surefire", "Playwright", "SpringBoot", "Lombok", "Jackson",
+    "Kovács", "Ákos", "jdks", "azul", "Dtest", "Dskip", "xhigh", "viewports",
+    "frontmatter", "screenful", "googleusercontent", "fasterxml", "Strava",
+    "visibilitychange", "domcontentloaded", "Hostability", "springframework",
+    "databind", "dasharray", "linecap", "noopener", "enctype", "openstreetmap",
+    "opentopomap", "arcgisonline", "cartocdn", "basemaps", "lolz", "Untimed",
+    "Subsampled", "testdb", "Prefs", "CLOB", "autoconfiguration", "IDOR", "Sched",
+    "downsamples", "filechooser", "Footgun", "newpic", "oldpic", "Topo", "topo"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "e2e/node_modules/**",
+    "target/**",
+    ".agents/**",
+    ".git/**",
+    "data/**",
+    "e2e/playwright-report/**",
+    "e2e/test-results/**"
+  ]
+}

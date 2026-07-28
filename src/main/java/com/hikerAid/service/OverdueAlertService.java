@@ -38,9 +38,6 @@ public class OverdueAlertService {
         if (overdue.isEmpty()) return;
 
         for (TrackingSessionEntity s : overdue) {
-            s.setOverdueAlertSent(true);
-            sessionRepository.save(s);
-
             if (!emailService.isConfigured()) {
                 log.warn("Overdue session {} but email not configured - cannot alert", s.getId());
                 continue;
@@ -50,6 +47,7 @@ public class OverdueAlertService {
             List<FriendshipEntity> friends = friendshipRepository.findAllByUserAndStatus(hiker.getId(), Status.ACCEPTED);
             String expected = s.getExpectedReturn() != null ? s.getExpectedReturn().toString() : null;
 
+            boolean anySent = false;
             for (FriendshipEntity f : friends) {
                 UserEntity friend = f.getRequester().getId().equals(hiker.getId())
                     ? f.getAddressee() : f.getRequester();
@@ -57,11 +55,17 @@ public class OverdueAlertService {
                     emailService.sendOverdueAlert(friend.getEmail(), hiker.getName(),
                         s.getLastLat(), s.getLastLon(),
                         s.getLastAccuracyM() != null ? s.getLastAccuracyM() : 0, expected);
+                    anySent = true;
                 } catch (Exception e) {
                     log.error("Overdue alert email failed for {}: {}", friend.getEmail(), e.getMessage());
                 }
             }
-            log.info("Sent overdue alert for session {} to {} friends", s.getId(), friends.size());
+
+            if (anySent || friends.isEmpty()) {
+                s.setOverdueAlertSent(true);
+                sessionRepository.save(s);
+                log.info("Sent overdue alert for session {} to {} friends", s.getId(), friends.size());
+            }
         }
     }
 }

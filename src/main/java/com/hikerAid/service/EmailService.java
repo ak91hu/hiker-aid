@@ -16,8 +16,17 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final String RESEND_API = "https://api.resend.com/emails";
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+    public EmailService() {
+        this(new RestTemplate(), new ObjectMapper());
+    }
+
+    public EmailService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     @Value("${hikerAid.resend-api-key:}")
     private String resendApiKey;
@@ -51,10 +60,10 @@ public class EmailService {
 
     public void sendEmergencyAlert(String toEmail, String hikerName,
                                    double latitude, double longitude, double accuracyM) throws Exception {
-        String lat = String.format("%.7f", latitude);
-        String lon = String.format("%.7f", longitude);
-        String mapsUrl = "https://www.google.com/maps?q=" + lat + "," + lon;
-        String accuracy = accuracyM > 0 ? String.format("%.0f", accuracyM) + " meters" : "unknown";
+        String lat = String.format(Locale.ROOT, "%.7f", latitude);
+        String lon = String.format(Locale.ROOT, "%.7f", longitude);
+        String mapsUrl = "https://maps.google.com/?q=" + lat + "," + lon;
+        String accuracy = accuracyM > 0 ? String.format(Locale.ROOT, "%.0f", accuracyM) + " meters" : "unknown";
         String subject = "EMERGENCY - " + hikerName + " needs help on the trail!";
         String body = "--- EMERGENCY ALERT ---\n\n"
                 + hikerName + " has triggered an emergency alert from HikerAid.\n"
@@ -86,15 +95,15 @@ public class EmailService {
         if (expectedReturn != null) body.append("Expected back by: ").append(expectedReturn).append("\n");
         body.append("\n");
         if (latitude != null && longitude != null) {
-            String lat = String.format("%.7f", latitude);
-            String lon = String.format("%.7f", longitude);
-            String accuracy = accuracyM > 0 ? String.format("%.0f", accuracyM) + " meters" : "unknown";
+            String lat = String.format(Locale.ROOT, "%.7f", latitude);
+            String lon = String.format(Locale.ROOT, "%.7f", longitude);
+            String accuracy = accuracyM > 0 ? String.format(Locale.ROOT, "%.0f", accuracyM) + " meters" : "unknown";
             body.append("LAST KNOWN LOCATION\n");
             body.append("  Latitude:  ").append(lat).append("\n");
             body.append("  Longitude: ").append(lon).append("\n");
             body.append("  Accuracy:  ").append(accuracy).append("\n\n");
             body.append("  >> Open in Google Maps:\n");
-            body.append("  >> https://www.google.com/maps?q=").append(lat).append(",").append(lon).append("\n\n");
+            body.append("  >> https://maps.google.com/?q=").append(lat).append(",").append(lon).append("\n\n");
         } else {
             body.append("No GPS location was recorded for this hike.\n\n");
         }
@@ -149,9 +158,13 @@ public class EmailService {
             log.error("Resend API error {}: {}", e.getStatusCode(), errBody);
             try {
                 JsonNode err = objectMapper.readTree(errBody);
-                throw new RuntimeException("Resend: " + err.path("message").asText(errBody));
-            } catch (RuntimeException re) { throw re; }
-            catch (Exception ignored) {}
+                String message = err.path("message").asText("");
+                if (!message.isBlank()) {
+                    throw new RuntimeException("Resend: " + message, e);
+                }
+            } catch (tools.jackson.core.JacksonException ignored) {
+                // Fall through to the provider-neutral error below.
+            }
             throw new RuntimeException("Resend API error: " + e.getStatusCode());
         }
     }

@@ -1,0 +1,19 @@
+{
+  "name": "hikeraid-e2e",
+  "version": "1.0.0",
+  "description": "Functional UI test suite with assertions for HikerAid PWA",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "spellcheck": "cd .. && cspell \"**/*.{md,html,css,js,ts,java,json,yaml,yml}\" --config cspell.json --no-summary"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@types/node": "26.1.2",
+    "cspell": "10.0.1",
+    "typescript": "7.0.2"
+  }
+}

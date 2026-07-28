@@ -1,7 +1,7 @@
 # Development Guide
 
 ## Prerequisites
-- Java 21+ (matches `pom.xml` `<java.version>`)
+- Java 21+ (matches `pom.xml` `<java.version>21</java.version>`). *Note: If system default `java` is JDK 17, set `JAVA_HOME` to a Java 21+ installation when building/testing.*
 - Maven 3.8+
 - A working Google OAuth client (see [deployment.md](deployment.md))
 - Optional: Gemini API key, Resend API key
@@ -15,35 +15,68 @@ java -jar target/hikerAid-1.0.0.jar
 
 Browser: <http://localhost:8080>.
 
-## Tests
+## Testing Frameworks & Execution
 
-```bash
-mvn test
+### 1. Backend Unit & Integration Tests (JUnit 5 / Spring Security)
+
+`pom.xml` explicitly targets Java 21 (`<java.version>21</java.version>`). When running in environments where the default system Java runtime is JDK 17 (or older), executing standard `mvn test` will result in compilation or runtime fork failures (`release version 21 not supported` or `UnsupportedClassVersionError`). Set `JAVA_HOME` to a JDK 21+ installation before invoking Maven:
+
+**PowerShell (Windows):**
+```powershell
+$env:JAVA_HOME="C:\Users\Kovács Ákos\.jdks\azul-22.0.2"; mvn clean test
 ```
 
-Test layout under `src/test/java/com/hikerAid/`:
+**Bash / Linux / macOS:**
+```bash
+export JAVA_HOME="/path/to/jdk-21"; mvn clean test
+```
 
-| Suite | Coverage |
-|---|---|
-| `service/GpxParserServiceTest.java` | GPX parser happy paths |
-| `service/GpxParserEdgeCaseTest.java` | XXE prevention, malformed input, exotic GPX flavours |
-| `service/RouteAnalysisServiceTest.java` | Tobler, deadband, difficulty, calories, fitness pace, safety |
-| `service/RouteAnalysisAdvancedMetricsTest.java` | VAM, GAP, splits, live turn-back arrays, pack-weight load, explicit pace override, real-data pace calibration |
-| `service/WeatherServiceTest.java` | Open-Meteo risk assessment heuristics, cache behaviour |
-| `controller/GpxApiControllerTest.java` | `/api/analyze` validation and happy path |
-| `controller/GpxApiSecurityTest.java` | XXE on the analyze endpoint |
-| `controller/ActivityComparisonTest.java` | Route-matching logic, PR detection, lazy backfill |
+All 91 test cases run in memory with 0 failures and 0 errors:
 
-Tests use only the in-memory components — no real network or database. Spring
-context tests run with an H2 in-memory store; pure unit tests instantiate the
-service directly.
+| Suite | Tests | Coverage |
+|---|---|---|
+| `service/GpxParserServiceTest.java` | 8 | GPX parser happy paths |
+| `service/GpxParserEdgeCaseTest.java` | 8 | XXE prevention, malformed input, exotic GPX formats |
+| `service/RouteAnalysisServiceTest.java` | 13 | Tobler hiking function, 3 m elevation deadband, difficulty scoring, calorie calculation, fitness pace scaling, safety analysis |
+| `service/RouteAnalysisAdvancedMetricsTest.java` | 19 | VAM, GAP, per-km splits, live turn-back arrays, pack-weight load factor, explicit pace override, real-data pace self-calibration |
+| `service/WeatherServiceTest.java` | 15 | Open-Meteo risk assessment heuristics (thunderstorm, wind, precip, minTemp), LRU cache eviction |
+| `controller/GpxApiControllerTest.java` | 8 | `/api/analyze` validation and multipart file upload handling |
+| `controller/GpxApiSecurityTest.java` | 7 | XXE payload rejection on analyze endpoints |
+| `controller/ActivityComparisonTest.java` | 13 | Route-matching logic, PR detection, lazy endpoint backfilling |
 
-### Running a single test
+Tests use only in-memory components — no external network calls or database servers required. Spring context tests run with an H2 in-memory store; unit tests instantiate services directly.
+
+#### Running a single test suite or test method:
+
+**PowerShell:**
+```powershell
+$env:JAVA_HOME="C:\Users\Kovács Ákos\.jdks\azul-22.0.2"; mvn test -Dtest=RouteAnalysisServiceTest
+$env:JAVA_HOME="C:\Users\Kovács Ákos\.jdks\azul-22.0.2"; mvn test -Dtest=RouteAnalysisServiceTest#computesPerKmSplits
+```
+
+**Bash:**
+```bash
+JAVA_HOME="/path/to/jdk-21" mvn test -Dtest=RouteAnalysisServiceTest
+JAVA_HOME="/path/to/jdk-21" mvn test -Dtest=RouteAnalysisServiceTest#computesPerKmSplits
+```
+
+### 2. End-to-End Functional UI Tests (Playwright TypeScript)
+
+The automated functional UI test suite resides in `e2e/`:
 
 ```bash
-mvn test -Dtest=RouteAnalysisServiceTest
-mvn test -Dtest=RouteAnalysisServiceTest#computesPerKmSplits
+cd e2e
+npm install
+npx playwright test
 ```
+
+Features covered by Playwright assertion-heavy tests:
+- **Navigation & Screen Transitions**: Verifies upload screen, 2D/3D map viewer, Survival Suite tab, and drawer transitions.
+- **3D MapLibre Hazard Shading**: Validates 3D map canvas rendering, pitch control, and GeoJSON avalanche hazard slope color-coding ($<15^\circ$ green, $15^\circ\text{--}30^\circ$ orange, $>30^\circ$ red).
+- **Survival Suite Calculation**: Asserts accuracy of AMS hypoxia risk index, dynamic hydration/electrolyte resupply formulas, and optical SAR emergency canvas rendering.
+- **PWA & Offline Behavior**: Verifies ServiceWorker caching, tile pre-download modal, storage quota check, and IndexedDB activity sync.
+- **SOS Alert System**: Verifies always-on SOS trigger, emergency modal fallback, and SMS deep-link generation.
+
 
 ## Project Layout
 
@@ -153,6 +186,6 @@ curl http://localhost:8080/api/health # liveness
   use.
 - **Don't add `thinkingConfig` to Gemini requests.** It's silently rejected by
   the 2.5-flash REST API and causes empty responses.
-- **Keep gradient colours in sync** between `map.js` and `elevation.js`.
+- **Keep gradient colors in sync** between `map.js` and `elevation.js`.
 - **Email templates: ASCII only.** Em dashes render as `?` in plain-text
   clients.

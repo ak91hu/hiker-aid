@@ -33,9 +33,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         this.friendshipRepository = friendshipRepository;
     }
 
+    OAuth2User fetchOAuth2User(OAuth2UserRequest request) {
+        return super.loadUser(request);
+    }
+
     @Override
     public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
-        OAuth2User oauthUser = super.loadUser(request);
+        OAuth2User oauthUser = fetchOAuth2User(request);
 
         String googleId = oauthUser.getAttribute("sub");
         String email = oauthUser.getAttribute("email");

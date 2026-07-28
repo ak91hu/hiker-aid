@@ -158,7 +158,9 @@ public class FriendController {
 
         friendship.setStatus(Status.ACCEPTED);
         friendshipRepository.save(friendship);
-        return ResponseEntity.ok(Map.of("message", "Friend request accepted"));
+        return ResponseEntity.ok(Map.of(
+                "status", "accepted",
+                "message", "Friend request accepted"));
     }
 
     @DeleteMapping("/{id}")
@@ -236,7 +238,7 @@ public class FriendController {
         response.put("sent", sent);
         response.put("total", accepted.size());
         if (sent == 0 && !errors.isEmpty()) {
-            response.put("error", "All emails failed: " + errors.getFirst());
+            response.put("error", "All emails failed: " + errors.get(0));
             return ResponseEntity.status(500).body(response);
         }
         response.put("message", sent + " of " + accepted.size() + " friends notified");

@@ -74,6 +74,9 @@ the **live turn-back guidance** during GPS tracking — the client recomputes th
 daylight margin from the hiker's real position, measured pace, and wall clock
 without any further server call.
 
+The `gradientSegments` and `trackPoints` arrays also feed the **3D MapLibre GeoJSON slope hazard shading** engine, mapping per-segment gradient percentages into slope angles to render color-coded 3D hazard lines ($<15^\circ$ green safe, $15^\circ\text{--}30^\circ$ orange moderate, $>30^\circ$ red avalanche hazard zone).
+
+
 ### `GET /api/weather?lat=X&lon=Y`
 Open-Meteo weather forecast for a coordinate. Cached server-side for 1 hour
 (LRU, 512 entries).
@@ -84,7 +87,7 @@ Response:
   "latitude": 47.5, "longitude": 19.0, "timezone": "Europe/Budapest",
   "current": {"tempC": 12.4, "precipMm": 0.0, "windKmh": 8.2, "weatherCode": 1, "description": "Mostly clear"},
   "hourly": [{"time": "2026-05-28T15:00", "tempC": ..., "precipMm": ..., "windKmh": ..., "weatherCode": ..., "description": "..."}, ...],
-  "risk": {"level": "OK|CAUTION|DANGER", "summary": "Conditions look favourable..."}
+  "risk": {"level": "OK|CAUTION|DANGER", "summary": "Conditions look favorable..."}
 }
 ```
 

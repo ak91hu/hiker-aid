@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for the metrics introduced in the Phase 1 analytics expansion:
- * VAM (vertical ascent metres per hour), GAP (grade-adjusted pace), and per-km splits.
+ * VAM (vertical ascent meters per hour), GAP (grade-adjusted pace), and per-km splits.
  */
 class RouteAnalysisAdvancedMetricsTest {
 
@@ -99,7 +99,7 @@ class RouteAnalysisAdvancedMetricsTest {
         );
         AnalysisResult r = service.analyzeWithWeight(data, 70, 170, 0,3, 8, 0);
         assertEquals((int) Math.floor(r.stats().distanceKm()), r.splits().size(),
-            "Should emit exactly one SplitData per complete kilometre");
+            "Should emit exactly one SplitData per complete kilometer");
         for (int i = 0; i < r.splits().size(); i++) {
             assertEquals(i + 1, r.splits().get(i).km(),
                 "Splits should be numbered consecutively from 1");
@@ -219,8 +219,8 @@ class RouteAnalysisAdvancedMetricsTest {
         );
         SafetyAnalysis sf = service.analyzeWithWeight(data, 70, 170, 0,3, 8, 0).safety();
         int[] fwd = sf.cumForwardMinutes();
-        assertEquals(sf.personalizedMovingMinutes(), fwd[fwd.length - 1], 1,
-            "Last forward entry should equal total personalized moving time");
+        assertEquals(sf.personalizedTotalMinutes(), fwd[fwd.length - 1], 1,
+            "Last forward entry should equal total personalized time (including rest breaks)");
     }
 
     @Test
