@@ -222,6 +222,19 @@ class RouteAnalysisServiceTest {
     }
 
     @Test
+    void outputSamplingKeepsEveryPointOnShortRoutes() {
+        AnalysisResult result = service.analyze(makeRoute(
+            pt(47.5, 19.0, 200.0),
+            pt(47.51, 19.01, 210.0)
+        ));
+
+        assertEquals(2, result.trackPoints().size());
+        assertEquals(2, result.elevationProfile().size());
+        assertEquals(1, result.gradientSegments().size());
+        assertEquals(19.01, result.trackPoints().get(1)[1], 1e-9);
+    }
+
+    @Test
     void gradientSegmentsContiguous() {
         TrackPoint[] pts = new TrackPoint[50];
         for (int i = 0; i < 50; i++) {
