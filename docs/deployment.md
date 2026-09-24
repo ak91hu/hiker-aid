@@ -66,9 +66,12 @@ https://hikeraid.onrender.com/login/oauth2/code/google
 ```
 
 ### Auto-Deploy
-Every push to `main` triggers automatic deployment via Render's GitHub
-integration. The Docker image is rebuilt, the JAR is repackaged, and the
-service rolls over.
+`render.yaml` sets `autoDeployTrigger: checksPass`. Render's GitHub integration
+waits for this repository's GitHub Actions checks to pass before deploying a
+push to the linked branch. The checks build and test the Java app, build the
+production Docker image, and start it to verify `/api/health`. Render then
+builds the same commit from the repository. The Render service also uses
+`/api/health` as its deployment health check.
 
 ## Database
 
@@ -87,18 +90,13 @@ persistent production data, and maintain an independent backup.
 
 GitHub Actions (`.github/workflows/ci.yml`):
 - Triggers on push and PR to `main`
-- Sets up Java 21 with Maven cache
-- Runs `mvn clean package`
-- Verifies the JAR output
+- Runs `mvn verify` on Java 21
+- Builds and starts the production Docker image and checks `/api/health`
+- Requires both jobs to pass in a final quality gate before Render deploys
 
-### GitHub Secrets Required
-| Secret | Purpose |
-|---|---|
-| `GOOGLE_CLIENT_ID` | CI build |
-| `GOOGLE_CLIENT_SECRET` | CI build |
-| `GEMINI_API_KEY` | CI build |
-| `ADMIN_EMAIL` | CI build |
-| `RESEND_API_KEY` | CI build |
+The CI container smoke check uses placeholder Google OAuth values and does not
+need production secrets in GitHub Actions. Set production environment values in
+the Render dashboard or through the Render Blueprint's `sync: false` prompts.
 
 ## Docker & Container JVM Optimization
 

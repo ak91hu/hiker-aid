@@ -12,7 +12,7 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./Dockerfile
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL

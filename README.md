@@ -121,7 +121,7 @@ memory-constrained container hosts:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ak91hu/hiker-aid)
 
-Renders builds from the included multi-stage `Dockerfile` (`eclipse-temurin:21-jre-alpine`), auto-provisions PostgreSQL via `render.yaml`, and redeploys on every push to `main`.
+Render builds from the included multi-stage `Dockerfile` (`eclipse-temurin:21-jre-alpine`) and auto-provisions PostgreSQL via `render.yaml`. Production deploys start only after the GitHub Actions checks pass.
 
 ---
 
