@@ -317,12 +317,17 @@ public class RouteAnalysisService {
 
     private int[] downsampleMinutes(double[] vals, int step) {
         int n = vals.length;
-        List<Integer> out = new ArrayList<>(n / step + 2);
-        for (int i = 0; i < n; i += step) out.add((int) Math.round(vals[i]));
-        if ((n - 1) % step != 0) out.add((int) Math.round(vals[n - 1]));
-        int[] arr = new int[out.size()];
-        for (int i = 0; i < arr.length; i++) arr[i] = out.get(i);
-        return arr;
+        if (n == 0) return new int[0];
+
+        int[] sampled = new int[ceilDiv(n - 1, step) + 1];
+        int count = 0;
+        for (int i = 0; i < n; i += step) sampled[count++] = (int) Math.round(vals[i]);
+        if ((n - 1) % step != 0) sampled[count++] = (int) Math.round(vals[n - 1]);
+        return count == sampled.length ? sampled : Arrays.copyOf(sampled, count);
+    }
+
+    private int ceilDiv(int value, int divisor) {
+        return value == 0 ? 0 : 1 + (value - 1) / divisor;
     }
 
     private int estimateSunsetMinutes(double latDeg, int dayOfYear) {
@@ -469,38 +474,26 @@ public class RouteAnalysisService {
     }
 
     private List<double[]> buildTrackPoints(List<TrackPoint> points) {
-        int step = Math.max(1, points.size() / MAX_TRACK_POINTS);
-        List<double[]> out = new ArrayList<>(points.size() / step + 1);
-        for (int i = 0; i < points.size(); i += step) {
-            TrackPoint p = points.get(i);
+        int sampleCount = Math.min(points.size(), MAX_TRACK_POINTS);
+        List<double[]> out = new ArrayList<>(sampleCount);
+        for (int sample = 0; sample < sampleCount; sample++) {
+            TrackPoint p = points.get(sampleIndex(sample, sampleCount, points.size()));
             out.add(new double[]{p.lat(), p.lon()});
-        }
-        if ((points.size() - 1) % step != 0) {
-            TrackPoint last = points.get(points.size() - 1);
-            out.add(new double[]{last.lat(), last.lon()});
         }
         return out;
     }
 
     private List<double[]> buildGradientSegments(List<TrackPoint> points, double[] gradients) {
-        int step = Math.max(1, (points.size() - 1) / MAX_GRADIENT_SEGMENTS);
-        List<double[]> out = new ArrayList<>();
-        for (int i = step; i < points.size(); i += step) {
-            TrackPoint p1 = points.get(i - step);
-            TrackPoint p2 = points.get(i);
+        int segmentCount = Math.min(points.size() - 1, MAX_GRADIENT_SEGMENTS);
+        List<double[]> out = new ArrayList<>(segmentCount);
+        for (int segment = 0; segment < segmentCount; segment++) {
+            int start = sampleIndex(segment, segmentCount + 1, points.size());
+            int end = sampleIndex(segment + 1, segmentCount + 1, points.size());
+            TrackPoint p1 = points.get(start);
+            TrackPoint p2 = points.get(end);
             double avgGrad = 0;
-            for (int j = i - step + 1; j <= i; j++) avgGrad += gradients[j];
-            avgGrad /= step;
-            out.add(new double[]{p1.lat(), p1.lon(), p2.lat(), p2.lon(), avgGrad});
-        }
-        int lastCovered = ((points.size() - 1) / step) * step;
-        if (lastCovered < points.size() - 1) {
-            TrackPoint p1 = points.get(lastCovered);
-            TrackPoint p2 = points.get(points.size() - 1);
-            double avgGrad = 0;
-            int count = 0;
-            for (int j = lastCovered + 1; j < points.size(); j++) { avgGrad += gradients[j]; count++; }
-            if (count > 0) avgGrad /= count;
+            for (int j = start + 1; j <= end; j++) avgGrad += gradients[j];
+            avgGrad /= end - start;
             out.add(new double[]{p1.lat(), p1.lon(), p2.lat(), p2.lon(), avgGrad});
         }
         return out;
@@ -508,9 +501,10 @@ public class RouteAnalysisService {
 
     private List<ElevationPoint> buildElevationProfile(List<TrackPoint> points, double[] cumDist, double[] gradients, boolean hasEle) {
         if (!hasEle) return List.of();
-        int step = Math.max(1, points.size() / MAX_ELEVATION_PROFILE_POINTS);
-        List<ElevationPoint> out = new ArrayList<>();
-        for (int i = 0; i < points.size(); i += step) {
+        int sampleCount = Math.min(points.size(), MAX_ELEVATION_PROFILE_POINTS);
+        List<ElevationPoint> out = new ArrayList<>(sampleCount);
+        for (int sample = 0; sample < sampleCount; sample++) {
+            int i = sampleIndex(sample, sampleCount, points.size());
             Double ele = points.get(i).elevation();
             if (ele != null) {
                 out.add(new ElevationPoint(
@@ -520,17 +514,12 @@ public class RouteAnalysisService {
                 ));
             }
         }
-        if ((points.size() - 1) % step != 0) {
-            Double ele = points.get(points.size() - 1).elevation();
-            if (ele != null) {
-                out.add(new ElevationPoint(
-                    round2(cumDist[points.size() - 1] / 1000.0),
-                    round1(ele),
-                    round1(gradients[points.size() - 1])
-                ));
-            }
-        }
         return out;
+    }
+
+    private int sampleIndex(int sample, int sampleCount, int pointCount) {
+        if (sampleCount <= 1 || pointCount <= 1) return 0;
+        return (int) ((long) sample * (pointCount - 1) / (sampleCount - 1));
     }
 
     private double[] smooth(double[] data, double[] cumDist) {

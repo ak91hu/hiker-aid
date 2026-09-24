@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   java-quality:
-    name: Java · build and tests
+    name: Java · unit and integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -32,6 +32,14 @@ jobs:
           cache: maven
       - name: Build and run unit tests
         run: mvn --batch-mode --no-transfer-progress verify
+      - name: Upload Maven test reports
+        if: ${{ !cancelled() && (success() || failure()) }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maven-test-reports
+          path: target/surefire-reports/*.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
   container:
     name: Container · build and smoke test

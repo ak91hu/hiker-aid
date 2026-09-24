@@ -196,6 +196,32 @@ class RouteAnalysisServiceTest {
     }
 
     @Test
+    void outputSamplingHonorsPayloadCapsAndKeepsRouteEndpoints() {
+        int pointCount = 10_001;
+        List<TrackPoint> points = new java.util.ArrayList<>(pointCount);
+        for (int i = 0; i < pointCount; i++) {
+            points.add(pt(47.5, 19.0 + i * 0.00001, 200.0 + i * 0.01));
+        }
+
+        AnalysisResult result = service.analyze(
+            new GpxData("Large route", null, null, List.of(points), List.of()));
+
+        assertEquals(5_000, result.trackPoints().size());
+        assertEquals(500, result.elevationProfile().size());
+        assertEquals(2_000, result.gradientSegments().size());
+
+        double[] firstTrackPoint = result.trackPoints().get(0);
+        double[] lastTrackPoint = result.trackPoints().get(result.trackPoints().size() - 1);
+        assertEquals(19.0, firstTrackPoint[1], 1e-9);
+        assertEquals(19.0 + (pointCount - 1) * 0.00001, lastTrackPoint[1], 1e-9);
+
+        double[] lastGradientSegment = result.gradientSegments().get(result.gradientSegments().size() - 1);
+        assertEquals(lastTrackPoint[1], lastGradientSegment[3], 1e-9);
+        assertEquals(result.stats().distanceKm(),
+            result.elevationProfile().get(result.elevationProfile().size() - 1).distanceKm(), 0.01);
+    }
+
+    @Test
     void gradientSegmentsContiguous() {
         TrackPoint[] pts = new TrackPoint[50];
         for (int i = 0; i < 50; i++) {

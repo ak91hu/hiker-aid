@@ -91,6 +91,7 @@ persistent production data, and maintain an independent backup.
 GitHub Actions (`.github/workflows/ci.yml`):
 - Triggers on push and PR to `main`
 - Runs `mvn verify` on Java 21
+- Publishes Surefire XML reports as a 14-day artifact, including on test failure
 - Builds and starts the production Docker image and checks `/api/health`
 - Requires both jobs to pass in a final quality gate before Render deploys
 
