@@ -61,7 +61,7 @@ export default defineConfig({
   webServer: {
     command: 'mvn -f ../pom.xml spring-boot:run',
     url: 'http://localhost:8080/api/health',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
       JAVA_HOME: javaHome,

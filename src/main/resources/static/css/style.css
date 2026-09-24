@@ -199,6 +199,23 @@ html, body {
   font-size: 0.88rem;
   color: var(--c-danger);
 }
+.selected-file-name {
+  color: var(--c-text-muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.upload-retry-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--c-primary-lt);
+  color: #0d1f0d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.upload-retry-btn:hover { background: var(--c-accent); }
 .hidden { display: none !important; }
 
 .features-grid {

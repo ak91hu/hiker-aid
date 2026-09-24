@@ -62,6 +62,52 @@ test.describe('HikerAid PWA — accessible operation and recoverable failures', 
     await expect(page.locator('#drop-zone')).toBeEnabled();
   });
 
+  test('keeps the selected GPX available after correcting an invalid height', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#height-input').fill('100');
+    await page.locator('#file-input').setInputFiles(fixture);
+
+    const error = page.getByRole('alert');
+    await expect(error).toHaveText('Height must be between 120 and 220 cm');
+    await expect(page.locator('#selected-file-name')).toContainText('test-route.gpx');
+    await expect(page.getByRole('button', { name: 'Analyze selected GPX' })).toBeVisible();
+
+    await page.locator('#height-input').fill('170');
+    await page.getByRole('button', { name: 'Analyze selected GPX' }).click();
+    await expect(page.locator('#viewer-screen')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('explains an unusable route and accepts another file', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#file-input').setInputFiles({
+      name: 'one-point.gpx',
+      mimeType: 'application/gpx+xml',
+      buffer: Buffer.from('<gpx version="1.1"><trk><trkseg><trkpt lat="47.5" lon="19.0"/></trkseg></trk></gpx>'),
+    });
+
+    await expect(page.getByRole('alert')).toHaveText('The GPX route needs at least two track points');
+    await expect(page.locator('#upload-screen')).toBeVisible();
+
+    await page.locator('#file-input').setInputFiles(fixture);
+    await expect(page.locator('#viewer-screen')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('accepts the same selected file after a transient analysis failure', async ({ page }) => {
+    let requests = 0;
+    await page.route('**/api/analyze', route => {
+      requests += 1;
+      if (requests === 1) return route.abort('failed');
+      return route.continue();
+    });
+    await page.goto('/');
+    await page.locator('#file-input').setInputFiles(fixture);
+
+    await expect(page.getByRole('alert')).toContainText('Network error');
+    await page.getByRole('button', { name: 'Analyze selected GPX' }).click();
+    await expect(page.locator('#viewer-screen')).toBeVisible({ timeout: 15_000 });
+    expect(requests).toBe(2);
+  });
+
   test('exposes specialist route controls with accessible names after analysis', async ({ page }) => {
     await page.goto('/');
     await page.locator('#file-input').setInputFiles(fixture);

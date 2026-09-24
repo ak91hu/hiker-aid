@@ -65,6 +65,36 @@ class GpxApiControllerTest {
     }
 
     @Test
+    void analyzeRejectsNonFiniteWeight() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "route.gpx", "application/gpx+xml",
+            validGpx().getBytes());
+
+        mockMvc.perform(multipart("/api/analyze").file(file).param("weight", "NaN"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Weight must be between 20 and 300 kg"));
+    }
+
+    @Test
+    void analyzeRejectsInvalidHeight() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "route.gpx", "application/gpx+xml",
+            validGpx().getBytes());
+
+        mockMvc.perform(multipart("/api/analyze").file(file).param("height", "0"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Height must be between 120 and 220 cm"));
+    }
+
+    @Test
+    void analyzeRejectsRouteWithoutTwoConnectedPoints() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "route.gpx", "application/gpx+xml",
+            minimalGpx().getBytes());
+
+        mockMvc.perform(multipart("/api/analyze").file(file))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("The GPX route needs at least two track points"));
+    }
+
+    @Test
     void analyzeAcceptsValidGpx() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "route.gpx", "application/gpx+xml",
             validGpx().getBytes());

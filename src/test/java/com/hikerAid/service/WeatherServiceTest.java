@@ -6,10 +6,16 @@ import com.hikerAid.model.WeatherForecast.HourForecast;
 import com.hikerAid.model.WeatherForecast.WeatherRisk;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for the pure functions in WeatherService: WMO code lookup and
@@ -158,6 +164,30 @@ class WeatherServiceTest {
         assertNotNull(risk.summary());
         assertFalse(risk.summary().isBlank(),
             "Even OK conditions must produce some summary text");
+    }
+
+    @Test
+    void nearbyLocationsReuseForecastWhileDifferentLocationsFetchAgain() {
+        RestTemplate client = mock(RestTemplate.class);
+        when(client.getForEntity(anyString(), eq(String.class))).thenReturn(ResponseEntity.ok("""
+            {
+              "latitude": 47.5, "longitude": 19.0, "timezone": "Europe/Budapest",
+              "current": {"time": "2026-09-24T10:00", "temperature_2m": 18,
+                          "precipitation": 0, "wind_speed_10m": 8, "weather_code": 0},
+              "hourly": {"time": ["2026-09-24T10:00"], "temperature_2m": [18],
+                         "precipitation": [0], "wind_speed_10m": [8], "weather_code": [0]}
+            }
+            """));
+        WeatherService cachedService = new WeatherService(client, new ObjectMapper());
+
+        WeatherForecast first = cachedService.getForecast(47.501, 19.001);
+        WeatherForecast sameArea = cachedService.getForecast(47.504, 19.004);
+        WeatherForecast anotherArea = cachedService.getForecast(47.515, 19.015);
+
+        assertNotNull(first);
+        assertSame(first, sameArea);
+        assertNotSame(first, anotherArea);
+        verify(client, times(2)).getForEntity(anyString(), eq(String.class));
     }
 
     // ---- Helpers -----------------------------------------------------------

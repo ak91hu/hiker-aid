@@ -35,17 +35,17 @@ public class WeatherService {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
     }
-    private final Map<String, CacheEntry> cache = Collections.synchronizedMap(
+    private final Map<CacheKey, CacheEntry> cache = Collections.synchronizedMap(
         new LinkedHashMap<>(64, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, CacheEntry> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<CacheKey, CacheEntry> eldest) {
                 return size() > CACHE_MAX_ENTRIES;
             }
         }
     );
 
     public WeatherForecast getForecast(double lat, double lon) {
-        String key = String.format("%.2f,%.2f", lat, lon);
+        CacheKey key = new CacheKey(Math.round(lat * 100), Math.round(lon * 100));
         CacheEntry hit = cache.get(key);
         long now = System.currentTimeMillis();
         if (hit != null && (now - hit.timestamp) < CACHE_TTL_MS) return hit.forecast;
@@ -214,5 +214,6 @@ public class WeatherService {
         };
     }
 
+    private record CacheKey(long latitude, long longitude) {}
     private record CacheEntry(WeatherForecast forecast, long timestamp) {}
 }

@@ -71,17 +71,62 @@ jobs:
         if: always()
         run: docker rm --force hikeraid-ci || true
 
+  ui-tests:
+    name: UI · browser journeys
+    needs: [java-quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: e2e
+    env:
+      GOOGLE_CLIENT_ID: ci-placeholder
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install locked browser test dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Run browser journeys
+        run: npx playwright test
+      - name: Upload browser diagnostics
+        if: ${{ !cancelled() && (success() || failure()) }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-diagnostics
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   quality-gate:
     name: Quality gate
     if: always()
-    needs: [java-quality, container]
+    needs: [java-quality, container, ui-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Require every pre-deployment check
         env:
           JAVA_QUALITY: ${{ needs.java-quality.result }}
           CONTAINER: ${{ needs.container.result }}
+          UI_TESTS: ${{ needs.ui-tests.result }}
         run: |
-          printf '%s\n' "java-quality=$JAVA_QUALITY" "container=$CONTAINER"
+          printf '%s\n' "java-quality=$JAVA_QUALITY" "container=$CONTAINER" "ui-tests=$UI_TESTS"
           test "$JAVA_QUALITY" = success
           test "$CONTAINER" = success
+          test "$UI_TESTS" = success

@@ -1081,9 +1081,29 @@
   const dropZone   = document.getElementById('drop-zone');
   const fileInput  = document.getElementById('file-input');
   const weightInput = document.getElementById('weight-input');
+  const retryUploadBtn = document.getElementById('btn-analyze-selected');
+  const selectedFileName = document.getElementById('selected-file-name');
+  let selectedGpxFile = null;
+
+  function showSelectedFileRetry() {
+    if (!selectedGpxFile) return;
+    selectedFileName.textContent = `Selected file: ${selectedGpxFile.name}`;
+    selectedFileName.classList.remove('hidden');
+    retryUploadBtn.classList.remove('hidden');
+  }
+
+  function hideSelectedFileRetry() {
+    selectedFileName.classList.add('hidden');
+    retryUploadBtn.classList.add('hidden');
+  }
 
   dropZone.addEventListener('click', () => fileInput.click());
-  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+  dropZone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
 
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -1099,7 +1119,17 @@
     fileInput.value = '';
   });
 
+  retryUploadBtn.addEventListener('click', () => {
+    if (!selectedGpxFile) return;
+    hideError();
+    if (!validateBodyInputs()) return;
+    hideSelectedFileRetry();
+    uploadFile(selectedGpxFile);
+  });
+
   function processFile(file) {
+    selectedGpxFile = null;
+    hideSelectedFileRetry();
     if (!file.name.toLowerCase().endsWith('.gpx')) {
       showError('Please select a .gpx file');
       return;
@@ -1108,16 +1138,20 @@
       showError('File is too large — maximum 15 MB');
       return;
     }
+    selectedGpxFile = file;
     hideError();
-    if (!validateBodyInputs()) return;
+    if (!validateBodyInputs()) {
+      showSelectedFileRetry();
+      return;
+    }
     uploadFile(file);
   }
 
   function validateBodyInputs() {
     const w = parseFloat(weightInput.value);
     const h = parseFloat(document.getElementById('height-input').value);
-    if (isNaN(w) || w < 30 || w > 250) {
-      showError('Weight must be between 30 and 250 kg');
+    if (isNaN(w) || w < 20 || w > 300) {
+      showError('Weight must be between 20 and 300 kg');
       weightInput.focus();
       return false;
     }
@@ -1139,7 +1173,14 @@
   async function uploadFile(file) {
     showScreen('loading');
 
-    currentGpxText = await file.text();
+    try {
+      currentGpxText = await file.text();
+    } catch (err) {
+      showScreen('upload');
+      showError('Could not read the GPX file — please try again');
+      showSelectedFileRetry();
+      return;
+    }
 
     const weight = parseFloat(weightInput.value) || 70;
     const height = parseFloat(document.getElementById('height-input').value) || 170;
@@ -1166,9 +1207,11 @@
       if (!res.ok) {
         showScreen('upload');
         showError(data.error || 'Analysis failed — please try another file');
+        showSelectedFileRetry();
         return;
       }
 
+      selectedGpxFile = null;
       routeData = data;
       document.getElementById('btn-download-gpx').classList.remove('hidden');
       renderViewer(data);
@@ -1181,6 +1224,7 @@
     } catch (err) {
       showScreen('upload');
       showError('Network error — check your connection and try again');
+      showSelectedFileRetry();
     }
   }
 
@@ -3341,6 +3385,7 @@
     const el = document.getElementById('upload-error');
     el.textContent = msg;
     el.classList.remove('hidden');
+    el.focus();
   }
 
   function hideError() {

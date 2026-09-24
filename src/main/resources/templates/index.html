@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="/icons/icon-192.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <link rel="stylesheet" href="/css/style.css?v=25">
+    <link rel="stylesheet" href="/css/style.css?v=26">
     <script>
       // Apply theme before paint to avoid flash
       (function () {
@@ -157,7 +157,7 @@
         <div class="settings-row body-row">
             <div class="body-input">
                 <label for="weight-input">Weight</label>
-                <div class="input-unit"><input type="number" id="weight-input" value="70" min="30" max="250" step="1"><span>kg</span></div>
+                <div class="input-unit"><input type="number" id="weight-input" value="70" min="20" max="300" step="1"><span>kg</span></div>
             </div>
             <div class="body-input">
                 <label for="height-input">Height</label>
@@ -184,7 +184,9 @@
             <input type="checkbox" id="use-measured-pace">
             <span id="pace-cal-text"></span>
         </label>
-        <div id="upload-error" class="error-banner hidden"></div>
+        <div id="upload-error" class="error-banner hidden" role="alert" tabindex="-1"></div>
+        <p id="selected-file-name" class="selected-file-name hidden"></p>
+        <button id="btn-analyze-selected" class="upload-retry-btn hidden" type="button">Analyze selected GPX</button>
     </div>
 
     <div class="features-grid">
@@ -779,8 +781,8 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-<script src="/js/map.js?v=25"></script>
-<script src="/js/elevation.js?v=25"></script>
-<script src="/js/app.js?v=25"></script>
+<script src="/js/map.js?v=26"></script>
+<script src="/js/elevation.js?v=26"></script>
+<script src="/js/app.js?v=26"></script>
 </body>
 </html>

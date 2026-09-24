@@ -44,14 +44,20 @@ public class GpxApiController {
         if (file.getSize() > 15 * 1024 * 1024) {
             return ResponseEntity.badRequest().body(Map.of("error", "File too large — maximum 15 MB"));
         }
-        if (weight < 20 || weight > 300) {
+        if (!Double.isFinite(weight) || weight < 20 || weight > 300) {
             return ResponseEntity.badRequest().body(Map.of("error", "Weight must be between 20 and 300 kg"));
+        }
+        if (!Double.isFinite(height) || height < 120 || height > 220) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Height must be between 120 and 220 cm"));
         }
         fitness = Math.max(1, Math.min(5, fitness));
         pack = Math.max(0, Math.min(60, pack));
 
         try (var is = file.getInputStream()) {
             GpxData gpxData = gpxParser.parse(is);
+            if (gpxData.segments().stream().noneMatch(segment -> segment.size() >= 2)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "The GPX route needs at least two track points"));
+            }
             AnalysisResult result = paceFactor > 0
                 ? routeAnalysis.analyzeWithPace(gpxData, weight, height, pack, Math.max(0.3, Math.min(3.0, paceFactor)), startHour, startMinute)
                 : routeAnalysis.analyzeWithWeight(gpxData, weight, height, pack, fitness, startHour, startMinute);

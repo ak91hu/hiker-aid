@@ -85,11 +85,11 @@ Run the Playwright E2E functional test suite in the `e2e/` directory:
 ```bash
 cd e2e
 npm ci
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npm test
 ```
 
-Executes end-to-end browser tests verifying screen transitions, statistical calculations, modal interactivity, canvas rendering, 3D MapLibre avalanche slope shading, SOS emergency alerts, and PWA offline behavior.
+Executes end-to-end browser tests in Chromium, Firefox, WebKit, and Mobile Chrome, covering screen transitions, statistical calculations, modal interactivity, canvas rendering, 3D MapLibre avalanche slope shading, SOS emergency alerts, and PWA offline behavior. GitHub Actions runs this suite as part of the required deployment quality gate.
 
 ---
 

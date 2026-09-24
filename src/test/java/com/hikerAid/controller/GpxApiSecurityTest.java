@@ -77,7 +77,7 @@ class GpxApiSecurityTest {
     }
 
     @Test
-    void handlesEmptyTrack() throws Exception {
+    void rejectsEmptyTrackWithActionableError() throws Exception {
         String gpx = """
             <?xml version="1.0"?>
             <gpx version="1.1"><trk><trkseg></trkseg></trk></gpx>
@@ -85,8 +85,8 @@ class GpxApiSecurityTest {
         MockMultipartFile file = new MockMultipartFile("file", "empty.gpx", "application/gpx+xml", gpx.getBytes());
 
         mockMvc.perform(multipart("/api/analyze").file(file))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.stats.distanceKm").value(0));
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("The GPX route needs at least two track points"));
     }
 
     @Test

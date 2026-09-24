@@ -68,8 +68,8 @@ https://hikeraid.onrender.com/login/oauth2/code/google
 ### Auto-Deploy
 `render.yaml` sets `autoDeployTrigger: checksPass`. Render's GitHub integration
 waits for this repository's GitHub Actions checks to pass before deploying a
-push to the linked branch. The checks build and test the Java app, build the
-production Docker image, and start it to verify `/api/health`. Render then
+push to the linked branch. The checks build and test the Java app, run browser
+journeys, build the production Docker image, and start it to verify `/api/health`. Render then
 builds the same commit from the repository. The Render service also uses
 `/api/health` as its deployment health check.
 
@@ -92,8 +92,10 @@ GitHub Actions (`.github/workflows/ci.yml`):
 - Triggers on push and PR to `main`
 - Runs `mvn verify` on Java 21
 - Publishes Surefire XML reports as a 14-day artifact, including on test failure
+- Runs Playwright journeys in Chromium, Firefox, WebKit, and Mobile Chrome;
+  publishes browser diagnostics as a 14-day artifact
 - Builds and starts the production Docker image and checks `/api/health`
-- Requires both jobs to pass in a final quality gate before Render deploys
+- Requires all three jobs to pass in a final quality gate before Render deploys
 
 The CI container smoke check uses placeholder Google OAuth values and does not
 need production secrets in GitHub Actions. Set production environment values in

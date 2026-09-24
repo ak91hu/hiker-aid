@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
 
 test.describe('HikerAid PWA — Initial Load & Theme / Fitness Controls', () => {
   test.beforeEach(async ({ page }) => {
@@ -51,5 +52,16 @@ test.describe('HikerAid PWA — Initial Load & Theme / Fitness Controls', () => 
     await expect(packInput).toBeVisible({ timeout: 10000 });
     await packInput.fill('15');
     await expect(packInput).toHaveValue('15');
+  });
+
+  test('accepts the documented 20 kg lower weight limit during analysis', async ({ page }) => {
+    const weight = page.locator('#weight-input');
+    await expect(weight).toHaveAttribute('min', '20');
+    await expect(weight).toHaveAttribute('max', '300');
+    await weight.fill('20');
+    await page.locator('#file-input').setInputFiles(path.resolve(__dirname, '../fixtures/test-route.gpx'));
+
+    await expect(page.locator('#viewer-screen')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#stat-calories')).toContainText('kcal');
   });
 });
